@@ -20,7 +20,7 @@ export interface BehaviorCtx {
 
 const HABIT_DUR: Partial<Record<Pose, number>> = {
   nosepush: 0.5, glassesoff: 2.2, lookaround: 1.2, ear: 0.6, stretch: 1.6, think: 2.5, wrist: 0.6,
-  drink: 1.2, cough: 0.5, stare: 2.2, neck: 0.7, clothes: 0.8, temple: 0.7, underdesk: 0.8, side: 0.9, palm: 0.6,
+  drink: 1.2, cough: 0.5, stare: 2.2, neck: 0.7, clothes: 0.8, temple: 0.7, underdesk: 0.8, side: 0.9, palm: 0.6, glance: 1.0,
 };
 
 export function updateStudent(s: Student, ctx: BehaviorCtx): void {
@@ -52,7 +52,7 @@ export function updateStudent(s: Student, ctx: BehaviorCtx): void {
           s.combos++;
           s.pose = "write";
           // 등 뒤에 있거나 정전이면 더 자주
-          const bold = (!ctx.watched(s) || ctx.outage ? 0.55 : 1) * (ctx.lastMinutes ? 0.5 : 1);
+          const bold = (!ctx.watched(s) || ctx.outage ? 0.55 : 1) * (ctx.lastMinutes ? (ctx.level >= 25 ? 0.75 : 0.5) : 1);
           const [a, b] = s.cheat!.interval;
           s.nextCheatAt = t + (a + r() * (b - a)) * bold;
         }

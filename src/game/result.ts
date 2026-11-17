@@ -12,7 +12,7 @@ const HABIT_NAME: Partial<Record<Pose, string>> = {
   nosepush: "코받침을 밀어 올리는 습관", glassesoff: "안경을 벗어 렌즈를 닦는 습관", lookaround: "목을 풀며 두리번거리는 습관",
   ear: "귀를 긁는 습관", stretch: "기지개 켜는 습관", think: "턱 괴고 고민하는 습관", wrist: "시계로 남은 시간을 보는 습관",
   drink: "물 마시는 습관", cough: "감기 기침", stare: "어려운 문제에서 오래 멈추는 습관", neck: "목을 주무르는 습관",
-  clothes: "옷매무새를 고치는 습관", temple: "안경을 고쳐 쓰는 습관", underdesk: "다리를 긁는 습관", side: "목 스트레칭", palm: "손을 비비는 습관",
+  clothes: "옷매무새를 고치는 습관", glance: "감독관 쪽을 흘끗 보는 습관", temple: "안경을 고쳐 쓰는 습관", underdesk: "다리를 긁는 습관", side: "목 스트레칭", palm: "손을 비비는 습관",
 };
 
 export type Grade = "S" | "A" | "B" | "C" | "D" | "F";
@@ -168,10 +168,10 @@ export class ResultScene {
       const st = s.room.students[a.seat - 1];
       const c = st.i % 5, r = Math.floor(st.i / 5);
       const k = s.acts.filter((b) => b.seat === a.seat).indexOf(a);
-      if (k < 6) px(g, 22 + c * 40 + 4 + k * 4, 68 + r * 32 + 20, 3, 3, a.near ? "#2f6b3a" : "#d9443a");
+      if (k < 6) { const dx = 22 + c * 40 + 4 + k * 4, dy = 68 + r * 32 + 19; px(g, dx - 1, dy - 1, 5, 5, "#3a2a20"); px(g, dx, dy, 3, 3, a.near ? "#7fd18c" : "#ffffff"); }   // 흰 점 = 못 본 행동, 초록 = 가까이서 봄
     }
     g.font = KR(11); g.fillStyle = "#7d776b";
-    g.fillText("주황 적발 · 파랑 입실 때 보관 · 빨강 놓침 · 빗금 오인", 22, 194);
+    g.fillText("주황 적발 · 파랑 보관 · 빨강 놓침 · 빗금 오인 · 흰 점 못 본 행동", 22, 194);
 
     // 통계
     const sx = 236;

@@ -32,10 +32,12 @@ export type Pose =
   | "handup"      // 손 들기
   | "clothes"     // 옷 매만짐
   | "deskdown"    // 책상 모서리 내려다봄
-  | "window";     // 창문 쪽 보기
+  | "window"      // 창문 쪽 보기
+  | "glance"      // 감독관 쪽을 흘끗 봄
+  | "flinch";     // 눈이 마주치자 급히 고개를 숙임 (부정행위자)
 
 /** 무고한 학생도 하는 습관 동작 (부정행위 동작과 헷갈리게 만드는 미끼) */
 export const HABITS: Pose[] = ["nosepush", "glassesoff", "lookaround", "ear", "stretch", "think", "wrist", "drink", "cough", "stare", "neck", "clothes"];
 
 /** 고개를 숙이는 동작 */
-export const HEAD_DOWN = new Set<Pose>(["wrist", "underdesk", "palm", "sleeve", "deskdown", "eraser"]);
+export const HEAD_DOWN = new Set<Pose>(["wrist", "underdesk", "palm", "sleeve", "deskdown", "eraser", "flinch"]);

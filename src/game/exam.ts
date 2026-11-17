@@ -50,6 +50,7 @@ export class ExamScene {
   finalAnnounced = false;
   pathT = 0;
   prevActing: boolean[] = [];
+  lastAct: number[] = [];                 // 학생별 마지막 부정행위 동작 시각
   radioCharges = 2;
   radioUntil = -1;
   pre = 0;                       // 1교시 전 시계 확인 남은 시간             // 0 = 명부, 1~ = 감독관 수첩 메모
@@ -140,8 +141,9 @@ export class ExamScene {
     const dx = st.x - this.cam.x, dz = st.z - this.cam.z;
     let a = Math.atan2(dx, dz) - this.cam.yaw;
     a = Math.atan2(Math.sin(a), Math.cos(a));
-    const vol = base * Math.max(0, 1 - Math.hypot(dx, dz) / 11);
-    play(kind, Math.sin(a), vol);
+    const range = kind === "buzz" || kind === "hum" ? 4 : kind === "whisper" ? 3.2 : 11;   // 진동은 4m 안에서만
+    const vol = base * Math.max(0, 1 - Math.hypot(dx, dz) / range);
+    play(kind, Math.sin(a), vol, Math.abs(a) > Math.PI / 2);
   }
 
   /** 동작이 바뀔 때 나는 소리 단서 */
@@ -149,7 +151,12 @@ export class ExamScene {
     // 부정행위 동작이 시작된 순간 기록 (결과 화면 "그때 무슨 일이")
     if (st.acting && !this.prevActing[st.i] && isCheating(st))
       this.s.acts.push({ seat: st.seat, period: this.s.period, t: this.t, near: this.mode === "fp" && this.dist(st) < OBSERVE_RANGE && this.watched(st) });
+    if (st.habitPose === "glance" && isCheating(st) && (this.target === st.i || this.panel === st.i) && this.mode === "fp") {
+      st.habitPose = "flinch"; st.pose = "flinch"; st.habitT = 0.6;
+      st.nextCheatAt = Math.max(st.nextCheatAt, this.t + 4);   // 들켰다 싶어 잠시 몸을 사림
+    }
     this.prevActing[st.i] = st.acting;
+    if (st.acting) this.lastAct[st.i] = this.t;
     const prev = this.prevPose[st.i];
     this.prevPose[st.i] = st.pose;
     if (prev === st.pose || st.status !== "seated") return;
@@ -165,7 +172,13 @@ export class ExamScene {
     if (this.t >= this.pathT) { this.s.path.push([this.s.period, this.cam.x, this.cam.z]); this.pathT = this.t + 0.5; }
     if (this.t >= this.nextAmbient) {
       const seated = this.students.filter((x) => x.status === "seated");
-      if (seated.length) this.soundAt(this.s.r() < 0.5 ? "page" : "chair", seated[Math.floor(this.s.r() * seated.length)], this.lastMinutes() ? 0.9 : 0.5);
+      if (seated.length) {
+        // 무고한 학생도 비슷한 소리를 낸다: 볼펜 노크(카메라 펜과 헷갈림), 다리 떨기(진동과 헷갈림)
+        const who = seated[Math.floor(this.s.r() * seated.length)];
+        const roll = this.s.r();
+        const kind: SoundKind = roll < 0.35 ? "page" : roll < 0.6 ? "chair" : roll < 0.8 ? "click" : "hum";
+        this.soundAt(kind, who, this.lastMinutes() ? 0.9 : 0.5);
+      }
       this.nextAmbient = this.t + (this.lastMinutes() ? 1.5 : 4) + this.s.r() * 5;
     }
     if (this.lastMinutes()) {
@@ -174,7 +187,7 @@ export class ExamScene {
         this.toast("종료 10분 전입니다. 답안지의 성명·수험번호를 확인하세요.", 4, COLORS.accent);
       }
       const sec = Math.floor(this.t);
-      if (sec !== this.lastTick) { this.lastTick = sec; play("tick", 0, 0.6); }
+      if (sec !== this.lastTick) { this.lastTick = sec; play("tick", 0, 0.3); }
     }
   }
 
@@ -473,9 +486,22 @@ export class ExamScene {
   /** 무선으로 송수신 중인 기기가 있는지 (이어폰·송수신기·스마트워치·휴대폰·AI 안경·카메라) */
   private transmitting(st: Student): boolean {
     if (!isCheating(st)) return false;
+    // 송신 중: 부정행위 동작 중이거나 끝난 지 4초 이내
+    if (!(st.acting || this.t - (this.lastAct[st.i] ?? -99) < 4)) return false;
     const c = st.cheat!;
     return !!(c.tells.earpiece || c.tells.neckDevice || c.tells.collarCam || c.tells.camPen || st.aiGen > 0 ||
       c.id === "watch" || c.family === "phone");
+  }
+
+  /** 관찰 중인 학생 주변 1.5m의 전파 세기 (0~1). 가끔 무고한 잡음이 섞인다 */
+  private radioSignal(st: Student): number {
+    let sig = 0.12 + 0.08 * Math.sin(this.t * 7);
+    for (const o of this.students) {
+      if (o.status !== "seated" || Math.hypot(o.x - st.x, o.z - st.z) > 1.5) continue;
+      if (this.transmitting(o)) sig = Math.max(sig, (o === st ? 0.75 : 0.55) + 0.2 * Math.sin(this.t * 13));
+    }
+    if (Math.floor(this.t * 2 + st.i) % 9 === 0) sig = Math.max(sig, 0.45);   // 다른 전자기기 잡음
+    return Math.min(1, sig);
   }
 
   /** 전파 탐지기 바늘 */
@@ -486,7 +512,7 @@ export class ExamScene {
     const cx = x + 35, cy = y + 56, r = 26;
     g.strokeStyle = "#2b3732"; g.lineWidth = 3; g.beginPath(); g.arc(cx, cy, r, Math.PI, 0); g.stroke();
     g.strokeStyle = COLORS.alert; g.beginPath(); g.arc(cx, cy, r, -0.6, 0); g.stroke();
-    const sig = this.transmitting(st) ? 0.75 + 0.2 * Math.sin(this.t * 13) : 0.12 + 0.08 * Math.sin(this.t * 7);
+    const sig = this.radioSignal(st);
     const a = Math.PI + sig * Math.PI;
     g.strokeStyle = COLORS.chalk; g.lineWidth = 1; g.beginPath(); g.moveTo(cx, cy); g.lineTo(cx + Math.cos(a) * (r - 3), cy + Math.sin(a) * (r - 3)); g.stroke();
   }
@@ -733,7 +759,16 @@ export class ExamScene {
       for (const line of wrapText(g, c.hint, w - 56)) { g.fillText(line, x + 42, yy); yy += 18; }
       yy += 8;
       g.font = KR(12); g.fillStyle = "#7d776b";
-      for (const line of wrapText(g, `근거: ${c.source}`, w - 56)) { g.fillText(line, x + 42, yy); yy += 16; }
+      for (const line of wrapText(g, `실제 사례: ${c.source}`, w - 56)) { g.fillText(line, x + 42, yy); yy += 16; }
+      if (c.url) {
+        // 신문 스크랩처럼 출처 주소를 붙여 둠
+        yy += 4;
+        px(g, x + 40, yy - 2, w - 60, 30, "#efe6cf"); px(g, x + 40, yy - 2, w - 60, 1, "#cdbf9c");
+        g.font = PIX(8); g.fillStyle = "#5a4a2a";
+        const u = c.url.replace(/^https?:\/\//, "");
+        g.fillText(u.slice(0, 48), x + 46, yy + 3);
+        if (u.length > 48) g.fillText(u.slice(48, 96), x + 46, yy + 14);
+      }
       g.font = KR(12); g.fillStyle = "#7d776b";
       g.fillText("클릭하거나 Space를 누르면 감독으로 돌아갑니다", x + 14, y + h - 22);
       return;

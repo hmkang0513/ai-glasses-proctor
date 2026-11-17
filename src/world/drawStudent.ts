@@ -98,7 +98,7 @@ export function drawStudent(g: Ctx, s: Student, o: DrawOpts): void {
   // 눈
   const ex = pose === "side" || pose === "lookaround" || pose === "window" ? Math.sign(hx) : 0;
   const lookDown = pose === "write" || pose === "burst" || pose === "stare" || pose === "mouth" || down ? 1 : 0;
-  const ey = hy + 5 + lookDown;
+  const ey = hy + 5 + lookDown - (pose === "glance" ? 1 : 0);
   if (pose === "cough") {
     px(g, CX - 3 + hx, ey, 2, 1, "#1a1414"); px(g, CX + 2 + hx, ey, 2, 1, "#1a1414");
   } else {

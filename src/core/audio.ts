@@ -33,17 +33,22 @@ export function toggleMute(): boolean {
   return muted;
 }
 
-export type SoundKind = "buzz" | "cough" | "chair" | "click" | "whisper" | "page" | "tick" | "power";
+export type SoundKind = "buzz" | "cough" | "chair" | "click" | "whisper" | "page" | "tick" | "power" | "hum";
 
 /** pan: -1(왼쪽)~1(오른쪽), vol: 0~1 */
-export function play(kind: SoundKind, pan = 0, vol = 1): void {
+/** muffled: 등 뒤에서 난 소리는 먹먹하게 (앞뒤 구분) */
+export function play(kind: SoundKind, pan = 0, vol = 1, muffled = false): void {
   const ac = ensure();
   if (!ac || !master || vol <= 0.02) return;
   const t = ac.currentTime;
   const out = ac.createGain();
   const panner = ac.createStereoPanner();
   panner.pan.value = Math.max(-1, Math.min(1, pan));
-  out.connect(panner).connect(master);
+  if (muffled) {
+    const lp = ac.createBiquadFilter();
+    lp.type = "lowpass"; lp.frequency.value = 1500;
+    out.connect(lp).connect(panner).connect(master);
+  } else out.connect(panner).connect(master);
 
   const noise = (dur: number) => {
     const buf = ac.createBuffer(1, Math.ceil(ac.sampleRate * dur), ac.sampleRate);
@@ -63,9 +68,9 @@ export function play(kind: SoundKind, pan = 0, vol = 1): void {
     case "buzz": {          // 스마트워치 진동: 짧게 두 번 "지잉 지잉"
       for (const off of [0, 0.22]) {
         const o = ac.createOscillator(); const g = ac.createGain();
-        o.type = "square"; o.frequency.value = 160;
+        o.type = "triangle"; o.frequency.value = 160;
         g.gain.setValueAtTime(0.0001, t + off);
-        g.gain.exponentialRampToValueAtTime(0.18 * vol, t + off + 0.02);
+        g.gain.exponentialRampToValueAtTime(0.08 * vol, t + off + 0.02);
         g.gain.exponentialRampToValueAtTime(0.0001, t + off + 0.15);
         o.connect(g).connect(out); o.start(t + off); o.stop(t + off + 0.16);
       }
@@ -113,6 +118,14 @@ export function play(kind: SoundKind, pan = 0, vol = 1): void {
       const o = ac.createOscillator(); const g = ac.createGain();
       o.type = "triangle"; o.frequency.value = 1300; env(g, 0.08 * vol, 0.002, 0.03);
       o.connect(g).connect(out); o.start(t); o.stop(t + 0.04);
+      break;
+    }
+    case "hum": {           // 다리를 떨어 책상이 우웅 (무고한 학생의 진동음 미끼)
+      const o = ac.createOscillator(); const g = ac.createGain();
+      o.type = "triangle"; o.frequency.value = 150; env(g, 0.07 * vol, 0.03, 0.4);
+      const lfo = ac.createOscillator(); const lg = ac.createGain();
+      lfo.frequency.value = 7; lg.gain.value = 0.03 * vol; lfo.connect(lg).connect(g.gain);
+      o.connect(g).connect(out); o.start(t); o.stop(t + 0.42); lfo.start(t); lfo.stop(t + 0.42);
       break;
     }
     case "power": {         // 정전: 전기가 툭 끊기는 소리

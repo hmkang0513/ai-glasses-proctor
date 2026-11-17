@@ -225,7 +225,8 @@ export function buildRoom(level: number, seed = level * 7919 + 13, alumnus: Alum
     }
     s.habits = habits;
   });
-  for (const s of students) if (s.cheat) s.habits = [pick(r, ["think", "stretch", "drink"] as Pose[])];
+  for (const s of students) if (s.cheat) s.habits = [pick(r, ["think", "stretch", "drink"] as Pose[]), "glance", "glance"];
+  for (const s of students) if (!s.cheat) s.habits.push("glance");
   // 2회차 미끼: 검은 뿔테 학생은 안경을 자주 고쳐 씀
   if (level === 2) {
     const d = students.find((s) => !s.cheat && s.glasses === GSTYLES[3]);

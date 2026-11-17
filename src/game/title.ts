@@ -32,7 +32,7 @@ export class TitleScene {
       { x: 324, y: 227, w: 66, h: 14, act: () => { this.save.mode = "fp"; writeSave(this.save); } },
       { x: 324, y: 244, w: 66, h: 14, act: () => { this.save.mode = "cctv"; writeSave(this.save); } },
       { x: 396, y: 227, w: 68, h: 32, act: () => this.onStart() },
-      { x: 330, y: 196, w: 134, h: 20, act: () => this.onDaily() },
+      { x: 330, y: 196, w: 134, h: 20, act: () => { if (this.save.level >= 10) this.onDaily(); } },
       { x: 406, y: 8, w: 66, h: 16, act: () => {
         if (!this.confirmReset) { this.confirmReset = true; return; }
         this.save.level = 1; this.save.notebook = []; this.save.noteMissed = []; this.save.bestGrades = {}; this.save.attempts = {}; this.save.alumni = []; writeSave(this.save); this.confirmReset = false;
@@ -85,7 +85,8 @@ export class TitleScene {
     const dk = todayKey(), dg = this.save.daily[dk];
     px(g, 330, 196, 134, 20, "rgba(16,22,20,0.9)");
     g.font = KR(12); g.fillStyle = COLORS.accent;
-    g.fillText(dg ? `오늘의 시험실 · ${dg} 등급` : "오늘의 시험실 도전 ▶", 338, 199);
+    if (this.save.level < 10) g.fillStyle = "#4a5a52";
+    g.fillText(this.save.level < 10 ? "오늘의 시험실 · 10회차부터" : dg ? `오늘의 시험실 · ${dg} 등급` : "오늘의 시험실 도전 ▶", 338, 199);
 
     // 처음부터 (확인 2번)
     px(g, 406, 8, 66, 16, "rgba(16,22,20,0.7)");
