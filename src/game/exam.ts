@@ -1,0 +1,762 @@
+// 시험 장면: 1인칭 감독 + CCTV 전환
+import { COLORS, H, KR, PIX, W, label, makeCanvas, px, wrapText, type Ctx } from "../core/px";
+import type { Input } from "../core/input";
+import {
+  ACCUSE_RANGE, COMPLAINT_MAX, END_WHEN_ALL_CAUGHT, EXAM_SECONDS, FREEZE_RANGE, OBSERVE_RANGE,
+  PERIODS, STARE_COMPLAINT_SEC, THERMAL_CHARGES, clockText,
+} from "../data/rules";
+import { applyLight, cctvPass, type PointLight, type PresetName } from "../render/light";
+import { F, SPEAKER, drawClipboard, drawRoom, proj, quad, toCam, type Camera } from "../render/fp";
+import { drawTopRoom, drawTopTeacher, tdX, tdY } from "../render/topdown";
+import { updateStudent } from "../world/behavior";
+import { SPR_H, SPR_W, drawEmptySeat, drawProctor, drawStanding, drawStudent } from "../world/drawStudent";
+import { COLX, ROOM_D, ROOM_W, ROWZ, isCheating, type Student } from "../world/student";
+import { drawCloseup } from "../ui/closeup";
+import { CHEAT_BY_ID } from "../data/cheats";
+import { play, toggleMute, type SoundKind } from "../core/audio";
+import { cctvGlitch, type Layer } from "../render/effects";
+import type { Session } from "./session";
+
+const SPX = 0.036;               // 스프라이트 1픽셀 = 0.036m
+const DOOR = { x: 9.4, z: 11.7 }; // 뒷문
+const WALK = 1.7;                // m/s
+const TURN = 0.0024;             // 마우스 감도
+
+interface Toast { text: string; until: number; color?: string }
+
+export class ExamScene {
+  readonly name = "exam";
+  t = 0;
+  periodLen = EXAM_SECONDS;
+  cam: Camera = { x: 5, z: 1.4, y: 1.55, yaw: 0 };
+  mode: "fp" | "cctv";
+  panel = -1;               // 관찰 중인 학생 자리 인덱스
+  target = -1;              // 조준점에 걸린 학생
+  thermalCharges = THERMAL_CHARGES;
+  thermalUntil = -1;
+  toasts: Toast[] = [];
+  marks = new Set<number>(); // CCTV에서 표시한 학생
+  memoOpen = false;
+  memoPages: string[] = [];
+  memoPage = 0;
+  glitch: Layer | null = null;   // CCTV 전환 효과
+  rt = 0;                        // 실제 경과 시간 (토스트용)
+  readonly aide = { x: 9.0, z: 12.7 };   // 부감독: 뒷문 옆에 서서 앞쪽을 봄
+  aideHintAt = -1;
+  watchChecked = new Set<number>();      // 시계 확인에서 이미 민원을 받은 학생
+  prevPose: string[] = [];                // 소리 단서용 이전 동작
+  nextAmbient = 4;                        // 다음 교실 잡음(의자·시험지) 시각
+  lastTick = -1;
+  finalAnnounced = false;
+  pathT = 0;
+  prevActing: boolean[] = [];
+  radioCharges = 2;
+  radioUntil = -1;
+  pre = 0;                       // 1교시 전 시계 확인 남은 시간             // 0 = 명부, 1~ = 감독관 수첩 메모
+  ended = false;
+  endReason: "time" | "allCaught" | "replaced" = "time";
+  endAt = -1;               // 잠시 뒤 끝낼 시각 (게임 시간)
+  pendingReason: "allCaught" | "replaced" = "allCaught";
+  caughtThisPeriod = 0;
+  moving = false;
+  weather: PresetName;
+
+  // 정전 이벤트
+  outageAt = -1;
+  outageEnd = -1;
+  outageDone = false;
+
+  private base: [HTMLCanvasElement, Ctx];
+  private spr: [HTMLCanvasElement, Ctx];
+  private dst: ImageData;
+
+  constructor(public s: Session, private onEnd: () => void) {
+    this.mode = s.save.mode;
+    this.base = makeCanvas(W, H);
+    this.spr = makeCanvas(SPR_W, SPR_H);
+    this.dst = new ImageData(W, H);
+    const r = s.r;
+    this.weather = (["day", "overcast", "dim"] as PresetName[])[Math.floor(r() * 3)];
+    if (r() < s.room.outageChance) this.outageAt = 40 + r() * 80;
+    // 첫 교시 시작 전 수석감독관 메모
+    if (s.period === 0 && (s.room.tutorial.length || s.room.notes.length)) {
+      this.memoOpen = true;
+      this.memoPages = s.room.tutorial.length ? [...s.room.tutorial, ...s.room.notes] : ["감독 명부 메모", ...s.room.notes];
+    }
+    // 학생 시간 초기화 (2교시는 새로 시작)
+    for (const st of s.room.students) {
+      if (st.status === "leaving") st.status = "gone";
+      st.acting = false; st.habitPose = null; st.pose = "write";
+      st.nextCheatAt = 4 + r() * 10; st.nextHabitAt = 3 + r() * 12;
+      st.stareT = 0; st.ledOn = false;
+      if (st.partner >= 0 && st.partner > st.i) s.room.students[st.partner].nextCheatAt = st.nextCheatAt + 0.7;
+    }
+    for (const st of s.room.students) if (st.group >= 0) {
+      const lead = s.room.students.find((o) => o.group === st.group)!;
+      st.nextCheatAt = lead.nextCheatAt + (st === lead ? 0 : 0.3);
+    }
+    this.setupEvents();
+    // 1교시 전 시계 확인 (실제 수능: 1·3교시 전에 시계를 책상 위에 두고 감독관이 확인)
+    if (s.period === 0 && s.room.level >= 4) this.pre = 12;
+    // 부감독 헛기침 힌트: 교시당 1번, 정확도 약 70%, 50회차부터 없음
+    if ((s.room.level >= 3 && s.room.level < 50) || s.room.bribedAide) this.aideHintAt = 45 + r() * 80;
+  }
+
+  // ===== 이벤트: 창밖 쪽지(15회차~), 일찍 퇴실(44회차~) =====
+  windowSeat = -1;
+  windowFrom = -1;
+  earlyExit: number[] = [];
+  earlyAt = -1;
+
+  private setupEvents(): void {
+    const { r, room } = this.s;
+    const free = room.students.filter((x) => x.status === "seated" && !x.cheat);
+    // 창가(왼쪽 첫 줄) 학생에게 창밖 조력자가 쪽지를 전달
+    if (room.level >= 15 && r() < 0.18) {
+      const cands = free.filter((x) => x.i % 5 === 0);
+      if (cands.length) {
+        const st = cands[Math.floor(r() * cands.length)];
+        st.cheat = CHEAT_BY_ID.window;
+        st.nextCheatAt = 1e9;               // 창밖 사람이 나타나야 시작
+        this.windowSeat = st.i;
+        this.windowFrom = 30 + r() * 70;
+      }
+    }
+    // 카메라 안경으로 찍고 퇴실 가능 시간에 함께 나가는 학생들
+    const early = room.students.filter((x) => x.cheat?.id === "earlyexit" && x.status === "seated" && !x.confiscated);
+    if (this.s.period === 0 && early.length) {
+      this.earlyExit = early.map((x) => x.i);
+      this.earlyAt = 70 + r() * 60;          // 정해진 퇴실 시각은 없음 (수능에서 확인 안 됨)
+    }
+  }
+
+  /** 종료 10분 전 (게임 시간 마지막 25초) */
+  lastMinutes(): boolean {
+    return this.periodLen - this.t <= 25;
+  }
+
+  /** 학생 위치에서 나는 소리: 좌우 패닝 + 거리 감쇠 */
+  private soundAt(kind: SoundKind, st: Student, base = 1): void {
+    const dx = st.x - this.cam.x, dz = st.z - this.cam.z;
+    let a = Math.atan2(dx, dz) - this.cam.yaw;
+    a = Math.atan2(Math.sin(a), Math.cos(a));
+    const vol = base * Math.max(0, 1 - Math.hypot(dx, dz) / 11);
+    play(kind, Math.sin(a), vol);
+  }
+
+  /** 동작이 바뀔 때 나는 소리 단서 */
+  private soundFor(st: Student): void {
+    // 부정행위 동작이 시작된 순간 기록 (결과 화면 "그때 무슨 일이")
+    if (st.acting && !this.prevActing[st.i] && isCheating(st))
+      this.s.acts.push({ seat: st.seat, period: this.s.period, t: this.t, near: this.mode === "fp" && this.dist(st) < OBSERVE_RANGE && this.watched(st) });
+    this.prevActing[st.i] = st.acting;
+    const prev = this.prevPose[st.i];
+    this.prevPose[st.i] = st.pose;
+    if (prev === st.pose || st.status !== "seated") return;
+    const ch = isCheating(st) ? st.cheat! : null;
+    if (st.pose === "wrist" && ch?.id === "watch" && st.acting) this.soundAt("buzz", st, 0.9);     // 답이 도착한 진동
+    if (st.pose === "cough") this.soundAt("cough", st, 0.8);                                          // 신호든 감기든 기침
+    if (st.pose === "penup" && ch?.tells.camPen) this.soundAt("click", st, 0.7);                     // 카메라 펜 딸깍
+    if ((st.pose === "nod" || st.pose === "ear") && ch?.tells.earpiece && this.dist(st) < 3.2) this.soundAt("whisper", st, 1);   // 가까이서만
+    if (st.pose === "stretch") this.soundAt("chair", st, 0.6);
+  }
+
+  private updateAmbient(): void {
+    if (this.t >= this.pathT) { this.s.path.push([this.s.period, this.cam.x, this.cam.z]); this.pathT = this.t + 0.5; }
+    if (this.t >= this.nextAmbient) {
+      const seated = this.students.filter((x) => x.status === "seated");
+      if (seated.length) this.soundAt(this.s.r() < 0.5 ? "page" : "chair", seated[Math.floor(this.s.r() * seated.length)], this.lastMinutes() ? 0.9 : 0.5);
+      this.nextAmbient = this.t + (this.lastMinutes() ? 1.5 : 4) + this.s.r() * 5;
+    }
+    if (this.lastMinutes()) {
+      if (!this.finalAnnounced) {
+        this.finalAnnounced = true;
+        this.toast("종료 10분 전입니다. 답안지의 성명·수험번호를 확인하세요.", 4, COLORS.accent);
+      }
+      const sec = Math.floor(this.t);
+      if (sec !== this.lastTick) { this.lastTick = sec; play("tick", 0, 0.6); }
+    }
+  }
+
+  private updateEvents(): void {
+    this.updateAmbient();
+    if (this.aideHintAt > 0 && this.t >= this.aideHintAt) {
+      this.aideHintAt = -1;
+      const seated = this.students.filter((x) => x.status === "seated");
+      const cheaters = seated.filter((x) => isCheating(x));
+      const honest = !this.s.room.bribedAide && this.s.r() < 0.7;   // 매수된 부감독은 일부러 엉뚱한 학생을 가리킴
+      const pool = cheaters.length && honest ? cheaters : seated.filter((x) => !isCheating(x));
+      if (pool.length) {
+        const st = pool[Math.floor(this.s.r() * pool.length)];
+        this.toast(`부감독이 헛기침을 하며 ${st.seat}번 쪽을 봅니다`, 4, COLORS.accent);
+        this.s.aideHintSeats.push(st.seat);
+      }
+    }
+    if (this.windowSeat >= 0 && this.t >= this.windowFrom && this.t < this.windowFrom + 0.1) {
+      const st = this.students[this.windowSeat];
+      if (st.status === "seated") st.nextCheatAt = this.t + 0.5;
+    }
+    if (this.earlyAt > 0 && this.t >= this.earlyAt) {
+      // 한 명씩, 몇 초 간격으로 "시험 포기 → 대기실 이동"
+      const next = this.earlyExit.map((i) => this.students[i]).find((x) => x.status === "seated");
+      if (!next) { this.earlyAt = -1; return; }
+      next.status = "leaving"; next.leaveT = 0;
+      this.toast(`${next.seat}번 학생이 시험 포기 의사를 밝혀 대기실로 이동합니다`, 3);
+      this.earlyAt = this.t + 4 + this.s.r() * 5;
+    }
+  }
+
+  /** 창밖 사람이 보이는 동안 */
+  windowPersonVisible(): boolean {
+    if (this.windowSeat < 0 || this.t < this.windowFrom) return false;
+    const st = this.students[this.windowSeat];
+    return st.status === "seated" && this.t < this.windowFrom + 60;
+  }
+
+  get students(): Student[] {
+    return this.s.room.students;
+  }
+
+  toast(text: string, sec = 3, color?: string): void {
+    this.toasts.push({ text, until: this.rt + sec, color });
+  }
+
+  dist(st: Student): number {
+    return Math.hypot(st.x - this.cam.x, st.z - this.cam.z);
+  }
+
+  /** 감독관이 이 학생 쪽을 보고 있는지 (시야 ±35°, 7m 이내) */
+  /** 부감독(뒷문 옆, 교실 앞쪽을 봄)이 지켜보는 범위: 뒤쪽 두 줄(11~20번). 앞쪽 두 줄은 정감독(플레이어) 몫 */
+  aideSees(st: Student): boolean {
+    return st.z >= 8.0;
+  }
+
+  watched(st: Student): boolean {
+    if (this.aideSees(st)) return true;
+    // CCTV를 보는 동안 감독관은 교탁 앞: 앞줄은 시선을 의식함
+    if (this.mode === "cctv") return this.dist(st) < 3.3;
+    const dx = st.x - this.cam.x, dz = st.z - this.cam.z;
+    let a = Math.atan2(dx, dz) - this.cam.yaw;
+    a = Math.atan2(Math.sin(a), Math.cos(a));
+    return Math.abs(a) < 0.62 && Math.hypot(dx, dz) < 7;
+  }
+
+  outage(): boolean {
+    return this.outageAt >= 0 && this.t >= this.outageAt + 0.6 && this.t < this.outageEnd;
+  }
+
+  // ===================== 갱신 =====================
+  update(dt: number, inp: Input): void {
+    if (this.ended) return;
+    this.rt += dt;
+    if (this.glitch) { this.glitch.update(dt); if (this.glitch.fx.done()) this.glitch = null; }
+    if (inp.hit("KeyM")) this.toast(toggleMute() ? "소리 끔" : "소리 켬", 1.5);
+    if (inp.hit("KeyQ")) {
+      this.memoOpen = !this.memoOpen;
+      if (this.memoOpen) { this.memoPages = this.notebookPages(); this.memoPage = 0; }
+      inp.releaseLock();
+    }
+    if (this.memoOpen) {
+      // ←/→ 로 감독관 수첩 쪽 넘기기
+      const pages = 1 + this.s.save.notebook.length;
+      if (inp.hit("ArrowRight") || inp.hit("KeyD")) this.memoPage = Math.min(pages - 1, this.memoPage + 1);
+      if (inp.hit("ArrowLeft") || inp.hit("KeyA")) this.memoPage = Math.max(0, this.memoPage - 1);
+      if (inp.clicked || inp.hit("Space") || inp.hit("Enter")) { this.memoOpen = false; if (this.mode === "fp") inp.requestLock(); }
+      return; // 명부를 보는 동안은 시간이 멈춘다
+    }
+
+    if (this.pre > 0) {
+      this.pre -= dt;
+      if (inp.hit("Tab")) this.toast("시계 확인 중에는 교실을 돌며 직접 봐야 합니다", 2);
+      if (this.mode === "fp") this.updateFp(dt, inp);
+      else this.updateCctv(inp);
+      if (this.pre <= 0) this.toast("08:40 · 1교시 국어 시작", 2.5, COLORS.accent);
+      return;
+    }
+    this.t += dt;
+    if (inp.hit("Tab")) {
+      this.mode = this.mode === "fp" ? "cctv" : "fp";
+      if (this.mode === "cctv") { this.cam.x = 5; this.cam.z = 0.95; this.cam.yaw = 0; }   // 교탁 앞 모니터로 이동
+      this.glitch = cctvGlitch();
+      this.s.save.mode = this.mode;
+      this.panel = -1;
+      if (this.mode === "cctv") inp.releaseLock();
+      this.toast(this.mode === "cctv" ? "교탁 앞 CCTV 화면 · 학생을 클릭해 표시해 두세요" : "교탁 앞에서 감독을 이어 갑니다", 2);
+    }
+
+    if (this.mode === "fp") this.updateFp(dt, inp);
+    else this.updateCctv(inp);
+    this.updateEvents();
+
+    // 정전 이벤트
+    if (this.outageAt >= 0 && !this.outageDone && this.t >= this.outageAt && this.outageEnd < 0) {
+      this.outageEnd = this.outageAt + 26;
+      play("power", 0, 0.8);
+      this.periodLen += 15; // 늦어진 만큼 시험 시간 연장
+    }
+    if (this.outageEnd > 0 && this.t >= this.outageEnd && !this.outageDone) {
+      this.outageDone = true;
+      this.toast("전기가 복구되었습니다. 늦어진 시간만큼 시험 시간을 연장합니다.", 4);
+    }
+
+    // 학생 행동
+    const ctx = {
+      t: this.t, dt, r: this.s.r, level: this.s.room.level,
+      dist: (st: Student) => this.dist(st),
+      watched: (st: Student) => this.watched(st),
+      freezeRange: this.mode === "cctv" ? 3.3 : FREEZE_RANGE, outage: this.outage(), lastMinutes: this.lastMinutes(),
+    };
+    for (const st of this.students) {
+      updateStudent(st, ctx);
+      this.soundFor(st);
+      if (st.status === "leaving") {
+        st.leaveT += dt;
+        if (st.leaveT > 3.6) st.status = "gone";
+      }
+      // 바로 옆에 오래 머물면 "쳐다봐서 불편하다" 민원
+      if (st.status === "seated" && this.mode === "fp" && this.dist(st) < 1.3 && (this.panel === st.i || this.target === st.i)) {
+        st.stareT += dt;
+        if (st.stareT > STARE_COMPLAINT_SEC && !st.stareComplained) {
+          st.stareComplained = true;
+          this.addComplaint(0.5, `${st.seat}번 학생: "감독관이 계속 옆에 서 있어서 불편해요" 민원`);
+        }
+      } else st.stareT = Math.max(0, st.stareT - dt * 0.5);
+    }
+
+    if (this.endAt > 0 && this.t >= this.endAt) this.finish(this.pendingReason);
+    if (this.t >= this.periodLen) this.finish("time");
+  }
+
+  private updateFp(dt: number, inp: Input): void {
+    if (inp.clicked && !inp.locked) inp.requestLock();
+    this.cam.yaw += inp.mouseDX * TURN;
+    if (inp.isDown("ArrowLeft")) this.cam.yaw -= dt * 1.8;
+    if (inp.isDown("ArrowRight")) this.cam.yaw += dt * 1.8;
+    const fx = Math.sin(this.cam.yaw), fz = Math.cos(this.cam.yaw);
+    let mx = 0, mz = 0;
+    if (inp.isDown("KeyW") || inp.isDown("ArrowUp")) { mx += fx; mz += fz; }
+    if (inp.isDown("KeyS") || inp.isDown("ArrowDown")) { mx -= fx; mz -= fz; }
+    if (inp.isDown("KeyD")) { mx += fz; mz -= fx; }
+    if (inp.isDown("KeyA")) { mx -= fz; mz += fx; }
+    const len = Math.hypot(mx, mz);
+    this.moving = len > 0;
+    if (len > 0) {
+      const step = (WALK * dt) / len;
+      this.tryMove(this.cam.x + mx * step, this.cam.z);
+      this.tryMove(this.cam.x, this.cam.z + mz * step);
+    }
+    this.cam.y = 1.55 + (this.moving ? Math.sin(this.t * 9) * 0.012 : 0);
+
+    // 조준점에 걸린 학생
+    this.target = this.pickTarget();
+
+    if (this.endAt > 0) return;   // 끝나는 중에는 관찰·적발 불가
+    // E: 관찰
+    if (inp.hit("KeyE")) {
+      if (this.panel >= 0) this.panel = -1;
+      else if (this.target >= 0) {
+        this.panel = this.target;
+        this.students[this.panel].observed = true;
+      } else this.toast("관찰할 학생을 화면 가운데에 두고 가까이 가세요", 2);
+    }
+    if (this.panel >= 0) {
+      const st = this.students[this.panel];
+      if (st.status !== "seated" || this.dist(st) > OBSERVE_RANGE + 1) this.panel = -1;
+    }
+    // T: 열화상
+    if (inp.hit("KeyT")) {
+      if (this.pre > 0) this.toast("시계 확인 시간에는 열화상을 쓰지 않습니다", 2);
+      else if (this.panel < 0) this.toast("열화상은 관찰(E) 중에만 쓸 수 있습니다", 2);
+      else if (this.thermalCharges <= 0) this.toast("이번 교시 열화상 횟수를 다 썼습니다", 2);
+      else { this.thermalCharges--; this.thermalUntil = this.t + 3; }
+    }
+    // R: 전파 탐지기 (16회차부터 지급, 교시당 2회)
+    if (inp.hit("KeyR")) {
+      if (this.s.room.level < 16) this.toast("전파 탐지기는 아직 지급되지 않았습니다", 2);
+      else if (this.panel < 0) this.toast("전파 탐지기는 관찰(E) 중에만 쓸 수 있습니다", 2);
+      else if (this.radioCharges <= 0) this.toast("이번 교시 전파 탐지기 횟수를 다 썼습니다", 2);
+      else { this.radioCharges--; this.radioUntil = this.t + 3; }
+    }
+    // F: 적발
+    if (inp.hit("KeyF")) this.tryAccuse();
+  }
+
+  private updateCctv(inp: Input): void {
+    if (inp.clicked) {
+      // 가장 가까운 학생 표시/해제
+      let best = -1, bd = 22;
+      for (const st of this.students) {
+        if (st.status !== "seated") continue;
+        const d = Math.hypot(tdX(st.x) - inp.mouseX, tdY(st.z) - 10 - inp.mouseY);
+        if (d < bd) { bd = d; best = st.i; }
+      }
+      if (best >= 0) {
+        if (this.marks.has(best)) this.marks.delete(best);
+        else this.marks.add(best);
+      }
+    }
+  }
+
+  private tryMove(x: number, z: number): void {
+    if (x < 0.35 || x > ROOM_W - 0.35 || z < 0.35 || z > ROOM_D - 0.35) return;
+    if (x > 4.1 && x < 5.9 && z < 0.8) return; // 교탁
+    if (Math.hypot(x - this.aide.x, z - this.aide.z) < 0.45) return; // 부감독
+    for (const cx of COLX) for (const rz of ROWZ) {
+      if (Math.abs(x - cx) < 0.5 && z > rz - 0.45 && z < rz + 0.55) return;
+    }
+    this.cam.x = x;
+    this.cam.z = z;
+  }
+
+  private pickTarget(): number {
+    let best = -1, bz = 1e9;
+    for (const st of this.students) {
+      if (st.status !== "seated") continue;
+      const c = toCam([st.x, 0, st.z], this.cam);
+      if (c[2] < 0.4 || c[2] > OBSERVE_RANGE) continue;
+      const sc = (SPX * F) / c[2];
+      const [fx] = proj(c);
+      const w = SPR_W * sc;
+      if (Math.abs(W / 2 - fx) < w * 0.32 && c[2] < bz) { bz = c[2]; best = st.i; }
+    }
+    return best;
+  }
+
+  private tryAccuse(): void {
+    if (this.endAt > 0 || this.s.replaced) return;   // 교체·종료가 정해진 뒤에는 적발 불가
+    const idx = this.panel >= 0 ? this.panel : this.target;
+    if (idx < 0) { this.toast("적발할 학생을 먼저 관찰(E)하세요", 2); return; }
+    const st = this.students[idx];
+    if (!st.observed) { this.toast("관찰(E)한 학생만 적발할 수 있습니다", 2); return; }
+    if (this.dist(st) > ACCUSE_RANGE) { this.toast("조금 더 가까이 가서 조용히 처리하세요", 2); return; }
+    if (this.pre > 0) { this.checkWatch(st); return; }
+    const correct = isCheating(st);
+    if (!correct && this.s.room.level <= 2 && !this.s.warningUsed) {
+      this.s.warningUsed = true;
+      this.panel = -1;
+      this.toast("수석감독관: 증거가 부족합니다. 이번만 경고로 넘어갑니다.", 4, COLORS.accent);
+      return;
+    }
+    st.status = "leaving";
+    st.leaveT = 0;
+    st.outcome = correct ? "caught" : "wrong";
+    st.caughtAt = this.t;
+    this.s.catches.push({ seat: st.seat, period: this.s.period, t: this.t, correct });
+    this.panel = -1;
+    if (correct) {
+      this.caughtThisPeriod++;
+      this.toast(`${st.seat}번 학생 · 기기 압수, 조용히 퇴실`, 3);
+      if (END_WHEN_ALL_CAUGHT && !this.students.some((o) => isCheating(o))) {
+        this.toast("이 교실의 부정행위자를 모두 찾았습니다", 3, COLORS.accent);
+        this.endAt = this.t + 1.8; this.pendingReason = "allCaught";
+      }
+    } else {
+      this.addComplaint(1, `${st.seat}번 학생: "억울합니다" 민원 접수`);
+    }
+  }
+
+  /** 시계 확인 시간: 스마트워치(아날로그처럼 생긴 하이브리드 포함)만 보관 */
+  private checkWatch(st: Student): void {
+    this.panel = -1;
+    if ((st.watch === "smart" || st.watch === "hybrid") && st.cheat?.id === "watch") {
+      st.confiscated = true;
+      this.toast(`${st.seat}번 · ${st.watch === "hybrid" ? "아날로그처럼 생긴 스마트워치" : "스마트워치"} 보관, 시험은 그대로 봅니다`, 3);
+    } else if (st.watch === "none") {
+      this.toast(`${st.seat}번은 시계가 없습니다`, 2);
+    } else {
+      if (this.watchChecked.has(st.i)) { this.toast(`${st.seat}번 시계는 이미 확인했습니다`, 2); return; }
+      this.watchChecked.add(st.i);
+      this.addComplaint(0.5, `${st.seat}번: "아날로그 시계인데 왜 가져가요" 민원`);
+    }
+  }
+
+  /** 무선으로 송수신 중인 기기가 있는지 (이어폰·송수신기·스마트워치·휴대폰·AI 안경·카메라) */
+  private transmitting(st: Student): boolean {
+    if (!isCheating(st)) return false;
+    const c = st.cheat!;
+    return !!(c.tells.earpiece || c.tells.neckDevice || c.tells.collarCam || c.tells.camPen || st.aiGen > 0 ||
+      c.id === "watch" || c.family === "phone");
+  }
+
+  /** 전파 탐지기 바늘 */
+  private drawRadio(g: Ctx, st: Student): void {
+    const x = 214, y = 196;
+    px(g, x, y, 70, 64, "rgba(16,22,20,0.94)");
+    g.font = KR(11); g.fillStyle = COLORS.chalk; g.textBaseline = "top"; g.fillText("전파 탐지", x + 6, y + 4);
+    const cx = x + 35, cy = y + 56, r = 26;
+    g.strokeStyle = "#2b3732"; g.lineWidth = 3; g.beginPath(); g.arc(cx, cy, r, Math.PI, 0); g.stroke();
+    g.strokeStyle = COLORS.alert; g.beginPath(); g.arc(cx, cy, r, -0.6, 0); g.stroke();
+    const sig = this.transmitting(st) ? 0.75 + 0.2 * Math.sin(this.t * 13) : 0.12 + 0.08 * Math.sin(this.t * 7);
+    const a = Math.PI + sig * Math.PI;
+    g.strokeStyle = COLORS.chalk; g.lineWidth = 1; g.beginPath(); g.moveTo(cx, cy); g.lineTo(cx + Math.cos(a) * (r - 3), cy + Math.sin(a) * (r - 3)); g.stroke();
+  }
+
+  addComplaint(n: number, text: string): void {
+    if (this.s.replaced) return;
+    this.s.complaints = Math.min(COMPLAINT_MAX, this.s.complaints + n);
+    this.toast(text, 3.5, COLORS.alert);
+    if (this.s.complaints >= COMPLAINT_MAX) {
+      this.s.replaced = true;
+      this.toast("민원이 너무 많아 감독관이 교체됩니다", 3, COLORS.alert);
+      this.endAt = this.t + 1.5; this.pendingReason = "replaced";
+    }
+  }
+
+  finish(reason: ExamScene["endReason"]): void {
+    if (this.ended) return;
+    this.ended = true;
+    this.endReason = reason;
+    this.onEnd();
+  }
+
+  notebookPages(): string[] {
+    const lines = ["감독 명부 · " + `${this.s.room.school} 제${this.s.room.roomNo}시험실`];
+    if (this.s.room.tutorial.length) lines.push(...this.s.room.tutorial.slice(1));
+    lines.push(...this.s.room.notes);
+    lines.push(`조작: WASD 이동 · 마우스 시선 · E 관찰 · F 적발 · T 열화상${this.s.room.level >= 16 ? " · R 전파 탐지" : ""} · Tab CCTV · Q 명부 · M 소리`);
+    return lines;
+  }
+
+  // ===================== 그리기 =====================
+  render(g: Ctx): void {
+    if (this.mode === "fp") this.renderFp(g);
+    else this.renderCctv(g);
+    if (this.glitch) this.glitch.draw(g);
+    this.renderHud(g);
+    if (this.memoOpen) this.renderMemo(g);
+  }
+
+  private presetNow(): PresetName {
+    if (this.outageAt >= 0 && this.t >= this.outageAt && this.t < this.outageEnd) {
+      if (this.t < this.outageAt + 0.6) return Math.floor(this.t * 8) % 2 ? "dark" : this.weather;
+      return "dark";
+    }
+    return this.weather;
+  }
+
+  private renderFp(g: Ctx): void {
+    const [, bg] = this.base;
+    const [sprC, sg] = this.spr;
+    bg.imageSmoothingEnabled = false;
+    drawRoom(bg, this.cam);
+    // 창밖 조력자 (창문 유리 너머 그림자)
+    if (this.windowPersonVisible()) {
+      const z = this.students[this.windowSeat].z;
+      const bob = Math.sin(this.t * 2) * 0.03;
+      quad(bg, this.cam, [[0.03, 1.05 + bob, z - 0.28], [0.03, 1.05 + bob, z + 0.28], [0.03, 1.85 + bob, z + 0.28], [0.03, 1.85 + bob, z - 0.28]], "#3b3f4a");
+      quad(bg, this.cam, [[0.03, 1.9 + bob, z - 0.14], [0.03, 1.9 + bob, z + 0.14], [0.03, 2.22 + bob, z + 0.14], [0.03, 2.22 + bob, z - 0.14]], "#2e3138");
+    }
+    const lights: PointLight[] = [];
+    type Item = { st: Student; wx: number; wz: number; kind: "seat" | "walk" | "aide" };
+    const items: Item[] = [{ st: this.students[0], wx: this.aide.x, wz: this.aide.z, kind: "aide" }];
+    for (const st of this.students) {
+      items.push({ st, wx: st.x, wz: st.z, kind: "seat" });
+      if (st.status === "leaving") {
+        const u = Math.min(1, st.leaveT / 3.4);
+        items.push({ st, wx: st.x + (DOOR.x - st.x) * u, wz: st.z + 0.5 + (DOOR.z - st.z - 0.5) * u, kind: "walk" });
+      }
+    }
+    const vis = items
+      .map((it) => ({ it, c: toCam([it.wx, 0, it.wz], this.cam) }))
+      .filter((o) => o.c[2] > 0.35)
+      .sort((a, b) => b.c[2] - a.c[2]);
+    for (const { it, c } of vis) {
+      const local: Array<{ x: number; y: number }> = [];
+      if (it.kind === "aide") drawProctor(sg, this.t);
+      else if (it.kind === "walk") drawStanding(sg, it.st, this.t);
+      else if (it.st.status !== "seated") drawEmptySeat(sg);
+      else drawStudent(sg, it.st, { t: this.t, ledVisible: true, lights: local });
+      const sc = (SPX * F) / c[2];
+      const [fx, fy] = proj(c);
+      const w = SPR_W * sc, h = SPR_H * sc;
+      const left = fx - w / 2, top = fy - h;
+      if (left > W || left + w < 0) continue;
+      bg.drawImage(sprC, left, top, w, h);
+      for (const L of local) lights.push({ x: Math.round(left + (L.x + 0.5) * sc), y: Math.round(top + (L.y + 0.5) * sc), r: Math.max(3, Math.round(11 * sc * 0.6)), c: [255, 70, 50], s: 0.95 });
+      // CCTV에서 표시한 학생 머리 위 표시
+      if (it.kind === "seat" && this.marks.has(it.st.i) && it.st.status === "seated") px(bg, fx - 2, top - 6, 4, 4, COLORS.accent);
+    }
+    drawClipboard(bg, this.t, this.moving);
+    const src = bg.getImageData(0, 0, W, H);
+    applyLight(src, this.dst, this.presetNow(), lights);
+    g.putImageData(this.dst, 0, 0);
+
+    // 조준점 + 대상 표시
+    px(g, W / 2 - 1, H / 2 - 1, 2, 2, "rgba(233,230,218,0.85)");
+    const ti = this.panel >= 0 ? this.panel : this.target;
+    if (ti >= 0) {
+      const st = this.students[ti];
+      const c = toCam([st.x, 0, st.z], this.cam);
+      if (c[2] > 0.35) {
+        const sc = (SPX * F) / c[2];
+        const [fx, fy] = proj(c);
+        const w = SPR_W * sc, h = SPR_H * sc;
+        const x0 = Math.round(fx - w * 0.38), x1 = Math.round(fx + w * 0.38);
+        const y0 = Math.max(4, Math.round(fy - h * 0.98)), y1 = Math.min(H - 4, Math.round(fy - h * 0.4));
+        g.fillStyle = COLORS.accent;
+        const L = 6;
+        g.fillRect(x0, y0, L, 1); g.fillRect(x0, y0, 1, L);
+        g.fillRect(x1 - L, y0, L, 1); g.fillRect(x1, y0, 1, L);
+        g.fillRect(x0, y1, L, 1); g.fillRect(x0, y1 - L, 1, L);
+        g.fillRect(x1 - L, y1, L + 1, 1); g.fillRect(x1, y1 - L, 1, L + 1);
+        const d = this.dist(st);
+        const txt = !st.observed ? "[E] 관찰" : d <= ACCUSE_RANGE ? "[F] 적발  [E] 닫기" : "가까이 가면 [F] 적발";
+        label(g, `${st.seat}번 ${txt}`, Math.min(W - 120, x1 + 4), Math.max(30, y0), { font: KR(12), color: COLORS.accent });
+      }
+    }
+    if (this.panel >= 0) {
+      const st = this.students[this.panel];
+      drawCloseup(g, st, this.t, 10, 166, this.t < this.thermalUntil);
+      if (this.t < this.radioUntil) this.drawRadio(g, st);
+      label(g, `${st.seat}번 관찰 중 · T 열화상 ${this.thermalCharges}회${this.s.room.level >= 16 ? ` · R 전파 ${this.radioCharges}회` : ""}`, 8, 150, { font: KR(12), bg: "none", color: COLORS.chalk });
+    }
+  }
+
+  private renderCctv(g: Ctx): void {
+    const [, bg] = this.base;
+    const [sprC, sg] = this.spr;
+    drawTopRoom(bg);
+    const order = [...this.students].sort((a, b) => b.z - a.z);
+    for (const st of order) {
+      if (st.status === "seated") drawStudent(sg, st, { t: this.t, ledVisible: true, lights: [] });
+      else drawEmptySeat(sg);
+      bg.drawImage(sprC, Math.round(tdX(st.x) - 16), Math.round(tdY(st.z) - 24));
+    }
+    for (const st of this.students) if (st.status === "leaving") {
+      const u = Math.min(1, st.leaveT / 3.4);
+      drawStanding(sg, st, this.t);
+      bg.drawImage(sprC, Math.round(tdX(st.x + (DOOR.x - st.x) * u) - 16), Math.round(tdY(st.z + (DOOR.z - st.z) * u) - 30));
+    }
+    drawTopTeacher(bg, this.cam.x, this.cam.z, this.cam.yaw);
+    drawTopTeacher(bg, this.aide.x, this.aide.z, Math.PI);   // 부감독 (앞쪽을 봄)
+    const src = bg.getImageData(0, 0, W, H);
+    cctvPass(src, this.dst, this.t, this.outage());
+    g.putImageData(this.dst, 0, 0);
+    for (const i of this.marks) {
+      const st = this.students[i];
+      if (st.status !== "seated") continue;
+      g.strokeStyle = COLORS.accent; g.lineWidth = 1;
+      g.strokeRect(Math.round(tdX(st.x) - 12) + 0.5, Math.round(tdY(st.z) - 26) + 0.5, 24, 30);
+    }
+    g.font = PIX(8); g.textBaseline = "top"; g.fillStyle = "#cfeec8";
+    g.fillText("CAM-01  REAR", W - 96, 26);
+    if (Math.floor(this.t * 2) % 2 === 0) px(g, 8, H - 14, 6, 6, COLORS.alert);
+    g.fillText("REC", 18, H - 15);
+  }
+
+  private renderHud(g: Ctx): void {
+    const p = PERIODS[this.s.period];
+    const remain = Math.max(0, this.periodLen - this.t);
+    const head = this.pre > 0 ? `시계 확인  08:${String(30 + Math.min(9, Math.floor((12 - this.pre) / 1.2))).padStart(2, "0")}` : `${p.name}  ${clockText(this.s.period, this.t)}`;
+    label(g, head, 6, 6, { font: KR(12) });
+    if (this.pre > 0) label(g, "학생들이 시계를 책상 위에 올려 둡니다 · 스마트워치는 관찰(E) 후 F로 보관", 40, 112, { font: KR(12), color: COLORS.accent });
+    // 남은 시간 막대
+    px(g, 6, 24, 100, 4, COLORS.line);
+    const hurry = this.lastMinutes() && Math.floor(this.rt * 2) % 2 === 0;
+    px(g, 6, 24, Math.round(100 * (remain / this.periodLen)), 4, this.lastMinutes() ? (hurry ? COLORS.alert : "#ff8a7f") : COLORS.accent);
+    if (this.lastMinutes()) label(g, "종료 10분 전", 110, 20, { font: KR(11), color: COLORS.alert });
+    const caught = this.s.catches.filter((c) => c.correct).length + this.s.gateEjected.length;
+    label(g, `CAUGHT ${caught}/?`, 6, 32, { font: PIX(8) });
+    // 민원 게이지 3칸
+    label(g, "민원", W - 92, 6, { font: KR(12) });
+    for (let k = 0; k < COMPLAINT_MAX; k++) {
+      const fill = Math.min(1, Math.max(0, this.s.complaints - k));
+      px(g, W - 58 + k * 17, 9, 14, 10, COLORS.line);
+      if (fill > 0) px(g, W - 58 + k * 17, 9, Math.round(14 * fill), 10, COLORS.alert);
+    }
+    if (this.mode === "fp" && !this.memoOpen && this.t < 6 && this.s.period === 0)
+      label(g, "화면 클릭 → 마우스 고정 · Q 명부 보기", W / 2 - 100, 112, { font: KR(12) });
+    // 정전 방송
+    this.renderOutage(g);
+    // 토스트
+    this.toasts = this.toasts.filter((x) => x.until > this.rt);
+    this.toasts.slice(-3).forEach((x, n) => {
+      g.font = KR(12);
+      const w = Math.ceil(g.measureText(x.text).width) + 12;
+      label(g, x.text, Math.round(W / 2 - w / 2), 46 + n * 20, { font: KR(12), color: x.color ?? COLORS.chalk });
+    });
+  }
+
+  private renderOutage(g: Ctx): void {
+    if (this.outageAt < 0 || this.t < this.outageAt + 1 || this.t > this.outageAt + 10) return;
+    const e = this.t - this.outageAt;
+    if (this.mode === "fp") {
+      const sp = toCam(SPEAKER, this.cam);
+      if (sp[2] > 0.2) {
+        const [sx, sy] = proj(sp);
+        const ring = Math.floor(this.t * 6) % 3;
+        for (let n = 0; n <= ring; n++) {
+          px(g, sx - 8 - n * 6, sy - 3, 2, 6, COLORS.accent);
+          px(g, sx + 8 + n * 6, sy - 3, 2, 6, COLORS.accent);
+        }
+      }
+    }
+    if (e < 4 && Math.floor(this.t * 3) % 3 !== 2) {
+      g.font = PIX(16);
+      const lw = Math.ceil(g.measureText("EVENT!").width) + 16;
+      px(g, W / 2 - lw / 2, 92, lw, 22, COLORS.accent);
+      g.fillStyle = COLORS.bg; g.textBaseline = "top"; g.fillText("EVENT!", W / 2 - lw / 2 + 8, 95);
+    }
+    const lines = e < 5.5
+      ? ["갑작스러운 정전입니다.", "수험생 여러분은 동요하지 말고 기다려 주십시오."]
+      : ["정전으로 늦어진 시간만큼", "시험 시간을 연장합니다. 감독관은 자리를 지켜 주십시오."];
+    px(g, 10, H - 58, 320, 44, "rgba(16,22,20,0.92)");
+    px(g, 10, H - 58, 3, 44, COLORS.accent);
+    g.font = KR(13); g.textBaseline = "top";
+    g.fillStyle = COLORS.accent; g.fillText("[방송실]", 20, H - 53);
+    g.fillStyle = COLORS.chalk; g.fillText(lines[0], 76, H - 53); g.fillText(lines[1], 20, H - 34);
+  }
+
+  private renderMemo(g: Ctx): void {
+    px(g, 0, 0, W, H, "rgba(0,0,0,0.55)");
+    const x = 70, y = 20, w = 340, h = 230;
+    px(g, x - 6, y - 6, w + 12, h + 12, "#5a3f28");
+    px(g, x, y, w, h, "#f4f2ea");
+    px(g, x + w / 2 - 20, y - 10, 40, 10, "#9aa0a8");
+    g.textBaseline = "top";
+    const nbIds = [...this.s.save.notebook].sort((a, b) => CHEAT_BY_ID[a].no - CHEAT_BY_ID[b].no);
+    const pages = 1 + nbIds.length;
+    g.font = KR(11); g.fillStyle = "#7d776b";
+    const pageText = `${this.memoPage + 1} / ${pages}${pages > 1 ? "  ←/→ 넘기기" : ""}`;
+    g.fillText(pageText, x + w - 14 - g.measureText(pageText).width, y + 14);
+    if (this.memoPage > 0) {
+      // 감독관 수첩: 손글씨 메모 한 쪽
+      const c = CHEAT_BY_ID[nbIds[this.memoPage - 1]];
+      for (let k = 0; k < 9; k++) px(g, x + 10, y + 44 + k * 18, w - 20, 1, "#d8d2c2");
+      px(g, x + 34, y + 36, 1, h - 50, "#e3a49a");
+      g.font = KR(16); g.fillStyle = COLORS.navy;
+      g.fillText(`감독관 수첩 · ${c.name}`, x + 14, y + 12);
+      const missed = this.s.save.noteMissed.includes(c.id);
+      if (missed) { g.font = KR(12); g.fillStyle = "#b03a2e"; g.fillText("처음엔 놓쳤던 수법", x + w - 128, y + 30); }
+      g.font = KR(13); g.fillStyle = missed ? "#b03a2e" : "#2a3a6a";
+      let yy = y + 48;
+      for (const line of wrapText(g, c.hint, w - 56)) { g.fillText(line, x + 42, yy); yy += 18; }
+      yy += 8;
+      g.font = KR(12); g.fillStyle = "#7d776b";
+      for (const line of wrapText(g, `근거: ${c.source}`, w - 56)) { g.fillText(line, x + 42, yy); yy += 16; }
+      g.font = KR(12); g.fillStyle = "#7d776b";
+      g.fillText("클릭하거나 Space를 누르면 감독으로 돌아갑니다", x + 14, y + h - 22);
+      return;
+    }
+    g.font = KR(16); g.fillStyle = COLORS.navy;
+    g.fillText(this.memoPages[0] ?? "감독 명부", x + 14, y + 12);
+    g.font = KR(13); g.fillStyle = COLORS.ink;
+    let yy = y + 40;
+    for (const para of this.memoPages.slice(1)) {
+      px(g, x + 12, yy + 5, 4, 4, COLORS.alert);
+      for (const line of wrapText(g, para, w - 40)) {
+        g.fillText(line, x + 22, yy);
+        yy += 17;
+      }
+      yy += 5;
+    }
+    // 수첩 기록
+    const nb = this.s.save.notebook;
+    if (nb.length) {
+      g.font = KR(12); g.fillStyle = "#7d776b";
+      g.fillText("→ 뒷장에 감독관 수첩 메모가 있습니다", x + 14, y + h - 40);
+    }
+    g.font = KR(12); g.fillStyle = "#7d776b";
+    g.fillText("클릭하거나 Space를 누르면 감독을 시작합니다", x + 14, y + h - 22);
+  }
+}

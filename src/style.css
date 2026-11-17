@@ -1,0 +1,17 @@
+/* 화면 전체를 검은 바탕으로 두고, 480×270 캔버스를 정수배로 키운다 */
+html, body {
+  margin: 0;
+  height: 100%;
+  background: #0b0f0e;
+  overflow: hidden;
+}
+body {
+  display: grid;
+  place-items: center;
+}
+#screen {
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+  display: block;
+  cursor: crosshair;
+}

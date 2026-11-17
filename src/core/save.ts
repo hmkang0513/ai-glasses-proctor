@@ -1,0 +1,50 @@
+// 진행 저장 (브라우저 localStorage). 저장이 막힌 환경에서도 게임은 그대로 동작한다.
+const KEY = "ai-glasses-proctor:save:v1";
+
+/** 감독 경력 칭호 */
+export function rankTitle(level: number): string {
+  return level >= 50 ? "수석감독관" : level >= 25 ? "베테랑 감독관" : level >= 10 ? "경력 감독관" : "신임 감독관";
+}
+
+export interface SaveData {
+  level: number;               // 다음에 맡을 감독 회차 (1부터)
+  notebook: string[];          // 감독관 수첩에 기록된 수법 id
+  noteMissed: string[];        // 그중 처음 만났을 때 놓친 수법 (빨간 펜)
+  bestGrades: Record<number, string>;
+  attempts: Record<number, number>;  // 회차별 실패 횟수 → 다시 하면 다른 배치
+  daily: Record<string, string>;     // 오늘의 시험실 날짜별 첫 등급
+  alumni: Array<{ hair: string; shirt: string; skin: string; longHair: boolean; method: string; level: number }>;  // 적발한 학생 (재응시 후보)
+  mode: "fp" | "cctv";
+  seenTutorial: boolean;
+}
+
+const DEFAULT: SaveData = { level: 1, notebook: [], noteMissed: [], bestGrades: {}, attempts: {}, alumni: [], daily: {}, mode: "fp", seenTutorial: false };
+
+export function loadSave(): SaveData {
+  try {
+    const raw = localStorage.getItem(KEY);
+    if (!raw) return { ...DEFAULT };
+    const d = JSON.parse(raw) as Partial<SaveData>;
+    return {
+      level: Math.max(1, Number(d.level) || 1),
+      notebook: Array.isArray(d.notebook) ? d.notebook.filter((x) => typeof x === "string") : [],
+      noteMissed: Array.isArray(d.noteMissed) ? d.noteMissed.filter((x) => typeof x === "string") : [],
+      bestGrades: d.bestGrades && typeof d.bestGrades === "object" ? d.bestGrades : {},
+      attempts: d.attempts && typeof d.attempts === "object" ? d.attempts : {},
+      alumni: Array.isArray(d.alumni) ? d.alumni.slice(-30) : [],
+      daily: d.daily && typeof d.daily === "object" ? d.daily : {},
+      mode: d.mode === "cctv" ? "cctv" : "fp",
+      seenTutorial: !!d.seenTutorial,
+    };
+  } catch {
+    return { ...DEFAULT };
+  }
+}
+
+export function writeSave(d: SaveData): void {
+  try {
+    localStorage.setItem(KEY, JSON.stringify(d));
+  } catch {
+    /* 시크릿 창 등에서 저장 실패 → 무시 */
+  }
+}

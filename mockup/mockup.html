@@ -1,0 +1,1779 @@
+<title>AI 안경 감독관</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Do+Hyeon&family=Noto+Sans+KR:wght@400;500;700&family=Silkscreen&display=swap">
+<style>
+/* 레이아웃: 칠판색 단일 다크 테마. 위에서 아래로 "실제 게임 화면 → 모드 비교 → 관찰 패널 → 단계별 조명" 순서 */
+:root {
+  --bg: #101614;        /* 칠판 바탕 */
+  --panel: #18211e;     /* 패널 */
+  --line: #2b3732;      /* 경계선 */
+  --chalk: #e9e6da;     /* 분필 흰색 본문 */
+  --muted: #9aa69f;     /* 보조 글자 */
+  --accent: #f0b54a;    /* 감독관 완장 주황 */
+  --alert: #ff5a4f;     /* 촬영 LED 빨강 */
+  --font-display: "Do Hyeon", "Noto Sans KR", system-ui, sans-serif;
+  --font-body: "Noto Sans KR", system-ui, -apple-system, "Malgun Gothic", sans-serif;
+  --font-pixel: "Silkscreen", ui-monospace, "Consolas", monospace;
+  color-scheme: dark;
+}
+body {
+  background: var(--bg);
+  color: var(--chalk);
+  font-family: var(--font-body);
+  font-size: 15px;
+  line-height: 1.65;
+}
+.wrap {
+  max-width: 1080px;
+  margin: 0 auto;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 32px 64px;
+  display: grid;
+  gap: 56px;
+}
+header { display: grid; gap: 10px; }
+.eyebrow {
+  font-family: var(--font-pixel);
+  font-size: 12px;
+  letter-spacing: 0.12em;
+  color: var(--accent);
+  text-transform: uppercase;
+}
+h1 {
+  font-family: var(--font-display);
+  font-weight: 400;
+  font-size: clamp(40px, 7vw, 68px);
+  line-height: 1.05;
+  margin: 0;
+  text-wrap: balance;
+}
+h1 em { font-style: normal; color: var(--alert); }
+h2 {
+  font-family: var(--font-display);
+  font-weight: 400;
+  font-size: 30px;
+  line-height: 1.2;
+  margin: 0;
+  text-wrap: balance;
+}
+p { margin: 0; max-width: 65ch; }
+.lead { color: var(--muted); font-size: 16px; }
+section { display: grid; gap: 18px; }
+.section-head { display: grid; gap: 6px; }
+.screen {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  height: auto;
+  aspect-ratio: 16 / 9;
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+  background: #000;
+  border: 2px solid var(--line);
+}
+.legend {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 10px 24px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.legend li { display: grid; grid-template-columns: 22px 1fr; gap: 8px; align-items: start; min-width: 0; }
+.key {
+  font-family: var(--font-pixel);
+  font-size: 11px;
+  width: 22px; height: 22px;
+  display: grid; place-items: center;
+  border: 1px solid var(--line);
+  background: var(--panel);
+  color: var(--accent);
+}
+.key.red { color: var(--alert); }
+.legend b { font-weight: 700; }
+.legend span { color: var(--muted); }
+h3.sub { font-family: var(--font-display); font-weight: 400; font-size: 22px; margin: 8px 0 0; }
+.dex {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+  gap: 10px;
+  margin: 0; padding: 0; list-style: none;
+}
+.dex li {
+  display: grid; gap: 2px; align-content: start; min-width: 0;
+  background: var(--panel); border: 1px solid var(--line);
+  padding: 10px 12px; font-size: 13px; color: var(--muted);
+}
+.dex li b { color: var(--chalk); font-weight: 500; font-size: 14px; }
+.dex .lv { font-family: var(--font-pixel); font-size: 11px; color: var(--accent); letter-spacing: 0.06em; }
+.dex li.locked { border-style: dashed; }
+.dex li.locked b, .dex li.locked .lv { color: #4a5a52; font-family: var(--font-pixel); }
+.spoiler { border: 1px solid var(--line); padding: 10px 14px; }
+.spoiler summary { cursor: pointer; color: var(--accent); }
+.table-wrap { overflow-x: auto; margin-top: 10px; }
+.table-wrap table { border-collapse: collapse; width: 100%; min-width: 560px; font-size: 14px; }
+.table-wrap th, .table-wrap td { text-align: left; padding: 6px 10px; border-bottom: 1px solid var(--line); }
+.table-wrap th { color: var(--muted); font-weight: 500; }
+.strip {
+  display: block; width: 100%; max-width: 100%; height: auto;
+  image-rendering: pixelated; image-rendering: crisp-edges;
+  border: 2px solid var(--line); background: #000;
+}
+#glassesRow { aspect-ratio: 8 / 1; }
+#aiRow { aspect-ratio: 6 / 1; }
+.strip-labels {
+  display: grid; grid-template-columns: repeat(var(--n), minmax(0, 1fr));
+  gap: 4px; margin: -8px 0 0; padding: 0; list-style: none;
+  font-size: 12px; color: var(--muted); text-align: center;
+}
+.strip-labels li { min-width: 0; overflow-wrap: anywhere; }
+.strip-labels em { font-style: normal; color: var(--accent); display: block; }
+.steps {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  margin: 0; padding: 0; list-style: none;
+  counter-reset: step;
+}
+.steps li {
+  display: grid; gap: 4px; align-content: start; min-width: 0;
+  border-top: 3px solid var(--line);
+  padding-top: 10px;
+  color: var(--muted); font-size: 14px;
+  counter-increment: step;
+  transition: border-color 0.2s, color 0.2s;
+}
+.steps li b { color: var(--muted); font-weight: 700; }
+.steps li b::before { content: counter(step) ". "; font-family: var(--font-pixel); font-size: 12px; }
+.steps li.active { border-top-color: var(--accent); color: var(--chalk); }
+.steps li.active b { color: var(--accent); }
+@media (prefers-reduced-motion: reduce) { .steps li { transition: none; } }
+.steps.flow { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+.steps.flow li { border-top-color: var(--accent); color: var(--chalk); }
+.steps.flow li b { color: var(--accent); }
+.two {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 24px;
+}
+.mode { display: grid; gap: 10px; align-content: start; min-width: 0; }
+.mode h3 {
+  font-family: var(--font-display); font-weight: 400; font-size: 22px; margin: 0;
+  display: flex; gap: 10px; align-items: baseline; flex-wrap: wrap;
+}
+.tag {
+  font-family: var(--font-pixel); font-size: 11px; letter-spacing: 0.08em;
+  padding: 2px 6px; border: 1px solid currentColor; color: var(--accent);
+}
+.tag.green { color: #7fd18c; }
+.mode ul { margin: 0; padding-left: 18px; color: var(--muted); }
+.mode ul b { color: var(--chalk); font-weight: 500; }
+.faces {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 20px;
+}
+.face { display: grid; gap: 8px; min-width: 0; }
+.face canvas {
+  width: 100%; max-width: 100%; height: auto; aspect-ratio: 1;
+  image-rendering: pixelated; image-rendering: crisp-edges;
+  border: 2px solid var(--line); background: #000;
+}
+.face strong { font-weight: 700; }
+.face p { color: var(--muted); font-size: 14px; }
+.verdict { font-family: var(--font-pixel); font-size: 11px; letter-spacing: 0.06em; }
+.verdict.ok { color: #7fd18c; }
+.verdict.bad { color: var(--alert); }
+.levels {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 16px;
+}
+.level { display: grid; gap: 8px; align-content: start; min-width: 0; }
+.level canvas {
+  width: 100%; max-width: 100%; height: auto; aspect-ratio: 16 / 9;
+  image-rendering: pixelated; image-rendering: crisp-edges;
+  border: 2px solid var(--line); background: #000;
+}
+.level .num { font-family: var(--font-pixel); font-size: 12px; color: var(--accent); letter-spacing: 0.08em; }
+.level h3 { font-family: var(--font-display); font-weight: 400; font-size: 20px; margin: 0; }
+.level p { color: var(--muted); font-size: 14px; }
+.note {
+  border-left: 3px solid var(--accent);
+  background: var(--panel);
+  padding: 14px 18px;
+  display: grid; gap: 6px;
+}
+.note p { color: var(--muted); font-size: 14px; }
+.note b { color: var(--chalk); }
+.sources { margin: 0; padding-left: 18px; color: var(--muted); font-size: 14px; display: grid; gap: 4px; }
+a { color: var(--accent); text-underline-offset: 3px; }
+a:focus-visible, canvas:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+@media (max-width: 760px) {
+  .two { grid-template-columns: minmax(0, 1fr); }
+  .faces, .levels, .steps, .steps.flow { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 420px) {
+  .levels { grid-template-columns: minmax(0, 1fr); }
+}
+.level + .note, .levels + .note { margin-top: 4px; }
+</style>
+
+<div class="wrap">
+  <header>
+    <div class="eyebrow">Mockup · v0.1 · 2026-11-17</div>
+    <h1>AI 안경 <em>감독관</em></h1>
+    <p class="lead">학생 20명 중 부정행위자를 잡는 웹 픽셀 게임의 화면 목업입니다. 아래 그림은 모두 브라우저에서 코드로 그린 임시 그림이고 실제로 움직입니다. 실제 게임에서는 LPC 캐릭터와 pixel-art-studio로 만든 그림으로 바뀝니다.</p>
+  </header>
+
+  <section aria-labelledby="cmp-h">
+    <div class="section-head">
+      <h2 id="cmp-h">그림 스타일 비교 · A로 결정</h2>
+      <p class="lead">같은 교실, 같은 자리에서 학생 그림만 바꿨습니다. 왼쪽은 지금 목업처럼 코드로 그린 학생, 오른쪽은 LPC 캐릭터 생성기의 실제 그림(의자에 앉은 자세)입니다.</p>
+    </div>
+    <div class="two">
+      <div class="mode">
+        <canvas id="cmpMock" class="screen" width="480" height="270" aria-label="목업 스타일 학생"></canvas>
+        <h3>A · 목업 스타일 <span class="tag">선택함</span></h3>
+        <ul>
+          <li>단순하고 작아서 <b>20명이 한눈에</b> 들어옵니다</li>
+          <li>안경다리 만지기 같은 <b>수상한 행동을 마음대로</b> 추가할 수 있습니다</li>
+          <li>사람보다는 기호에 가까운 느낌</li>
+        </ul>
+      </div>
+      <div class="mode">
+        <canvas id="cmpLpc" class="screen" width="480" height="270" aria-label="LPC 스타일 학생"></canvas>
+        <h3>B · LPC 스타일 <span class="tag green">기존 그림 조합</span></h3>
+        <ul>
+          <li>외곽선과 음영이 있어 <b>사람답고 정교합니다</b></li>
+          <li>머리 큰 RPG 캐릭터 비율이라 <b>귀여운 쪽</b>으로 기웁니다</li>
+          <li>앉은 자세는 있지만 <b>부정행위 동작은 없어서</b> 모두 LPC 화풍으로 직접 그려야 합니다</li>
+          <li>원작자 크레딧 표기 필수, 고친 그림은 CC-BY-SA로 공개</li>
+        </ul>
+      </div>
+    </div>
+    <p class="lead" style="font-size:14px">LPC 그림 출처: <a href="https://github.com/liberatedpixelcup/Universal-LPC-Spritesheet-Character-Generator" target="_blank" rel="noopener">Universal LPC Spritesheet Character Generator</a>. 몸·머리 Stephen Challener (Redshrike), Benjamin K. Smith (BenCreating), bluecarrot16, Eliza Wyatt (ElizaWy) 외 / 머리카락 JaidynReiman, Manuel Riecke (MrBeast), ElizaWy, bluecarrot16 / 상의·바지 ElizaWy, JaidynReiman, Johannes Sjölund (wulax), Matthew Krohn (makrohn) 외 / 안경 bluecarrot16, Thane Brimhall (pennomi), laetissima. 라이선스 OGA-BY 3.0, CC-BY-SA 3.0, GPL 3.0, CC0 (부품마다 다름). 색은 비교를 위해 바꿨습니다.</p>
+  </section>
+
+  <section aria-labelledby="title-h">
+    <div class="section-head">
+      <h2 id="title-h">시작 화면</h2>
+      <p class="lead">수능 시험장 학교 정문 앞. 이번에 맡을 시험실과 감독 모드를 확인하고 들어갑니다. 진행은 브라우저에 저장돼 다음에 이어집니다. 다음 레벨은 지금 레벨을 마쳐야 열립니다.</p>
+    </div>
+    <canvas id="title" class="screen" width="480" height="270" aria-label="시작 화면 목업"></canvas>
+  </section>
+
+  <section aria-labelledby="flow-h">
+    <div class="section-head">
+      <h2 id="flow-h">한 판의 흐름</h2>
+      <p class="lead">모든 레벨이 수능입니다. 레벨은 감독 경력(예: 12번째 감독)이고, 맡는 시험실은 매번 가상의 학교와 현실적인 시험실 번호로 정해집니다(예: 한빛고 제7시험실). 한 판은 그 시험실의 하루로 8~10분 정도 걸립니다. 레벨이 오를수록 숫자로 난이도가 올라가서 100레벨까지 가도 이야기가 이어집니다.</p>
+    </div>
+    <ol class="steps flow">
+      <li><b>입실 검사</b><span>약 2분. 20명을 한 명씩 검사합니다. 입실 마감 08:10.</span></li>
+      <li><b>1교시 국어</b><span>3분. 1인칭이나 CCTV로 감독합니다. 남은 부정행위자를 다 잡으면 1교시가 바로 끝납니다.</span></li>
+      <li><b>쉬는 시간</b><span>30초. 학생들이 화장실에 다녀옵니다. 이때 기기를 가져오는 학생이 확률로 생깁니다.</span></li>
+      <li><b>2교시 수학</b><span>3분. 1교시에 퇴실한 자리는 비어 있습니다. 이벤트가 더 자주 일어납니다.</span></li>
+      <li><b>결과</b><span>적발·놓침·오인을 공개하고 감독관 수첩에 메모가 남습니다. 놓친 학생의 수법과 실제 사례를 보여 줍니다.</span></li>
+    </ol>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>레벨</th><th>AI 안경</th><th>부정행위자</th><th>미끼 학생</th><th>그 밖에</th></tr></thead>
+        <tbody>
+          <tr><td>1~9</td><td>1세대: 두꺼운 테, LED</td><td>1~2명</td><td>2명</td><td>고전 수법이 하나씩 풀림</td></tr>
+          <tr><td>10~24</td><td>2세대: 얇은 테, LED 가림</td><td>2~3명</td><td>3~4명</td><td>전자기기 수법, 정전 이벤트 시작</td></tr>
+          <tr><td>25~49</td><td>3세대: 일반 안경과 같음</td><td>3~4명</td><td>5~6명</td><td>조직형 수법, 열화상 횟수 감소</td></tr>
+          <tr><td>50~</td><td>4세대: 저발열, 열화상도 애매</td><td>4~6명</td><td>7명 이상</td><td>수법 조합, 이벤트 자주, 입실 시간 단축</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="note">
+      <p><b>실제 시간표를 압축:</b> 화면의 시계는 실제 수능 시각으로 흐릅니다. 입실 마감 08:10, 1교시 국어 08:40~10:00(80분)이고, 게임에서는 80분을 3분으로 압축합니다. 남은 교시 시각은 개발 때 평가원 시행세부계획으로 맞춥니다.</p>
+      <p><b>적발 처분도 실제대로:</b> 수능 부정행위는 적발되면 그해 시험이 무효가 되고, 부정행위심의위원회가 제재를 심의합니다. 2022~2026학년도 5년 동안 1,229건이 적발됐고 전원 무효 처리됐습니다. 결과 화면에 이 처분을 그대로 적습니다.</p>
+    </div>
+  </section>
+
+  <section aria-labelledby="teacher-h">
+    <div class="section-head">
+      <h2 id="teacher-h">선생님 모드 (1인칭) · 1단계</h2>
+      <p class="lead">감독관의 눈으로 통로를 걸으며 고개를 돌려 학생들을 봅니다. 멀리 있는 학생은 작아서 단서가 잘 안 보이고, 가까이 가야 안경과 LED가 보입니다. 오른쪽 아래는 감독관이 들고 있는 감독 명부입니다.</p>
+    </div>
+    <canvas id="teacher" class="screen" width="480" height="270" aria-label="1인칭 선생님 모드 게임 화면 목업"></canvas>
+    <ul class="legend">
+      <li><span class="key red">●</span><div><b>빨간 점</b> <span>AI 안경 촬영 LED. 어두운 교실에서는 빛이 번져 보이지만, 멀리서는 점 하나라 놓치기 쉽습니다.</span></div></li>
+      <li><span class="key">E</span><div><b>관찰 표시</b> <span>화면 가운데 조준점에 가까운 학생이 걸리면 모서리 표시가 뜹니다. E를 누르면 얼굴 확대 패널이 열립니다.</span></div></li>
+      <li><span class="key">!</span><div><b>민원 게이지</b> <span>오른쪽 위. 무고한 학생을 잘못 적발하면 오르고, 가득 차면 게임 오버.</span></div></li>
+      <li><span class="key">□</span><div><b>빈자리</b> <span>입실 검사에서 기기를 숨기다 걸려 퇴실한 학생의 자리. 시험 시작부터 비어 있습니다.</span></div></li>
+      <li><span class="key">?</span><div><b>CAUGHT 0/?</b> <span>부정행위자가 모두 몇 명인지는 알려 주지 않습니다. 실제 시험처럼 끝까지 감독해야 합니다.</span></div></li>
+      <li><span class="key">~</span><div><b>헷갈리게 하는 학생</b> <span>일반 안경을 고쳐 쓰는 학생, 기지개, 귀 긁기. 부정행위와 동작이 비슷합니다.</span></div></li>
+    </ul>
+  </section>
+
+  <section aria-labelledby="catch-h">
+    <div class="section-head">
+      <h2 id="catch-h">적발하면</h2>
+      <p class="lead">실제 시험장처럼 조용히 처리합니다. 폭죽이나 큰 효과음 없이 학생을 퇴실시키고, 그 자리는 빈 책상으로 남긴 채 시험을 계속합니다.</p>
+    </div>
+    <canvas id="catch" class="screen" width="480" height="270" aria-label="적발 후 퇴실 장면 목업"></canvas>
+    <ol class="steps" id="steps">
+      <li><b>부정행위 확인</b><span>관찰로 단서를 확인합니다.</span></li>
+      <li><b>F 적발</b><span>조용히 다가가 퇴실을 안내합니다. 답안지를 회수합니다.</span></li>
+      <li><b>퇴실</b><span>학생이 일어나 뒷문으로 나갑니다. 다른 학생들은 그대로 시험을 봅니다.</span></li>
+      <li><b>빈자리, 계속 진행</b><span>CAUGHT 1/?. 몇 명이 남았는지 모르니 계속 감독합니다.</span></li>
+    </ol>
+    <div class="note">
+      <p><b>마지막 한 명까지 잡으면</b> 그 자리에서 시험이 끝나고 결과 화면으로 넘어갑니다. 남은 시간이 많을수록 점수가 높습니다.</p>
+      <p><b>다 못 찾으면</b> 시간이 끝날 때까지 시험이 계속됩니다. 결과 화면에서 놓친 학생과 그 학생이 쓴 수법을 보여 줍니다.</p>
+      <p><b>입실 검사에서 이미 다 잡았으면</b> 시험은 그래도 진행됩니다. 플레이어는 다 잡았는지 모르니 끝까지 감독하고, 무고한 학생을 잘못 잡지 않으면 결과 화면에서 "완벽한 입실 검사" 보너스를 받습니다.</p>
+      <p><b>쉬는 시간 반입:</b> 시험 중간 쉬는 시간이나 화장실에 다녀오면서 기기를 가져오는 학생이 <b>확률로</b> 나옵니다(예: 1단계 30%, 4단계 80%). 반드시 나오지는 않습니다.</p>
+      <p><b>잘못 잡으면</b> 무고한 학생도 퇴실되고 빈자리가 생깁니다. 민원 게이지가 오르고, 그 자리는 시험이 끝날 때까지 비어 있습니다.</p>
+    </div>
+  </section>
+
+  <section aria-labelledby="event-h">
+    <div class="section-head">
+      <h2 id="event-h">이벤트 · 갑작스러운 정전</h2>
+      <p class="lead">정전은 단계와 상관없이 시험 중에 무작위로 일어나는 이벤트입니다. 예고 없이 불이 깜빡이다 꺼지고, 잠시 뒤 교실 뒤 스피커에서 방송실 안내가 나옵니다.</p>
+    </div>
+    <canvas id="event" class="screen" width="480" height="270" aria-label="소등 이벤트 장면 목업"></canvas>
+    <ul class="legend">
+      <li><span class="key">♪</span><div><b>정전</b> <span>어두워지면 AI 안경 LED가 눈에 띄지만, 학생 얼굴과 손은 잘 안 보입니다. 늦어진 만큼 타이머가 늘어납니다. 실제로 2023학년도 수능 때 제주에서 정전이 나 해당 학생들이 예비 시험실로 옮기고 5분을 더 받았습니다.</span></div></li>
+      <li><span class="key">♪</span><div><b>듣기평가 방송</b> <span>방송이 나오는 동안 감독관이 움직이면 발소리가 나서 민원이 들어옵니다. 그 틈에 부정행위가 늘어납니다.</span></div></li>
+      <li><span class="key">♪</span><div><b>화장실 요청</b> <span>한 학생이 손을 들고 나갔다 옵니다. 돌아온 뒤 행동이 달라지면 기기를 가져왔을 수 있습니다.</span></div></li>
+    </ul>
+    <div class="note">
+      <p><b>확인된 것:</b> 정전 때 학생은 임의로 움직이지 말고 시험 관리본부 안내를 기다립니다. 시간 연장은 시험장 책임자가 다음 시험에 지장이 없는 범위에서 정합니다.</p>
+      <p><b>미검증:</b> 듣기평가 중 감독관 이동 제한, 화장실 다녀온 학생 재검사 같은 세부 규정은 공식 자료로 확인하지 못했습니다. 게임에서는 규칙으로 쓰고, 개발 전에 평가원 감독관 지침으로 확인하겠습니다.</p>
+    </div>
+  </section>
+
+  <section aria-labelledby="modes-h">
+    <div class="section-head">
+      <h2 id="modes-h">두 가지 모드</h2>
+      <p class="lead">같은 교실, 같은 학생 행동을 두 시점으로 봅니다. 시작할 때 고르거나, 시험 중 Tab으로 바꿀 수 있게 할 수 있습니다.</p>
+    </div>
+    <div class="two">
+      <div class="mode">
+        <canvas id="teacher2" class="screen" width="480" height="270" aria-label="1인칭 선생님 모드 축소 화면"></canvas>
+        <h3>선생님 모드 · 1인칭 <span class="tag">WASD + 마우스 + E/F</span></h3>
+        <ul>
+          <li><b>가까이 가야</b> LED·이어폰·입술 움직임이 보입니다</li>
+          <li>감독관이 다가오면 부정행위자가 <b>동작을 멈춥니다</b></li>
+          <li>등 뒤 학생은 안 보이고, 그 사이 대담해집니다</li>
+        </ul>
+      </div>
+      <div class="mode">
+        <canvas id="cctv" class="screen" width="480" height="270" aria-label="CCTV 모드 화면 목업"></canvas>
+        <h3>CCTV 모드 · 천장 카메라 <span class="tag green">1–4 카메라</span></h3>
+        <ul>
+          <li>위에서 교실 전체가 보이고 <b>학생에게 들키지 않습니다</b></li>
+          <li>화질이 낮아 작은 LED 같은 단서는 <b>뭉개집니다</b></li>
+          <li>손이 관자놀이로 반복해서 가는 패턴처럼 <b>행동으로만</b> 판단</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <section aria-labelledby="gate-h">
+    <div class="section-head">
+      <h2 id="gate-h">입실 검사 · 시험 전</h2>
+      <p class="lead">학생이 한 명씩 들어옵니다. 안경을 벗어 바구니에 올리게 하고, 소지품을 확인해 통과시키거나 보관합니다. 여기서 놓친 기기는 시험 중 부정행위로 이어집니다.</p>
+    </div>
+    <canvas id="gate" class="screen" width="480" height="270" aria-label="입실 검사 화면 목업"></canvas>
+    <ul class="legend">
+      <li><span class="key">◎</span><div><b>확대경</b> <span>안경 경첩을 6배로 봅니다. 일반 안경처럼 생긴 AI 안경도 카메라 구멍이 보입니다.</span></div></li>
+      <li><span class="key">≋</span><div><b>금속 탐지</b> <span>일반 금속테와 아날로그 시계에도 울립니다. 탐지기만 믿으면 무고한 학생을 잡습니다.</span></div></li>
+      <li><span class="key">⏱</span><div><b>입실 마감 08:10</b> <span>20명을 시간 안에 들여보내야 합니다. 꼼꼼히 볼수록 줄이 밀립니다.</span></div></li>
+      <li><span class="key red">✕</span><div><b>판단 결과</b> <span>통과(PASS), 보관(HOLD), 추가 확인(CHECK). 일반 안경을 뺏으면 학생이 시험지를 못 봐서 민원이 들어옵니다.</span></div></li>
+      <li><span class="key">H</span><div><b>순순히 내면 응시</b> <span>기기를 스스로 내면(HOLD) 기기만 보관하고 자리에 앉아 시험을 봅니다. 실제 수능 규정과 같습니다.</span></div></li>
+      <li><span class="key red">□</span><div><b>숨기다 걸리면 퇴실</b> <span>확인을 거부하거나 CHECK에서 숨긴 기기가 나오면 퇴실. 시험이 시작될 때 그 자리는 비어 있습니다.</span></div></li>
+    </ul>
+  </section>
+
+  <section aria-labelledby="face-h">
+    <div class="section-head">
+      <h2 id="face-h">관찰 패널 (E) · 단계별 안경</h2>
+      <p class="lead">시험 중 학생에게 다가가 E를 누르면 열리는 64×64 확대 화면입니다. 세대가 오를수록 안경 겉모습으로는 구분이 어려워집니다.</p>
+    </div>
+    <div class="faces">
+      <div class="face">
+        <canvas id="face1" width="64" height="64" aria-label="일반 안경 학생 확대"></canvas>
+        <div class="verdict ok">INNOCENT</div>
+        <strong>비교용 · 일반 안경</strong>
+        <p>얇은 금속테. 안경을 고쳐 쓰는 건 그냥 습관일 수 있습니다.</p>
+      </div>
+      <div class="face">
+        <canvas id="face2" width="64" height="64" aria-label="1단계 AI 안경 확대"></canvas>
+        <div class="verdict bad">GEN1 · AI GLASSES</div>
+        <strong>눈에 띄는 AI 안경</strong>
+        <p>두꺼운 안경다리, 경첩의 카메라 렌즈, 촬영 중 깜빡이는 LED.</p>
+      </div>
+      <div class="face">
+        <canvas id="face3" width="64" height="64" aria-label="2단계 열 감지 확대"></canvas>
+        <div class="verdict bad">GEN2 · THERMAL</div>
+        <strong>얇은 테 + LED 가림</strong>
+        <p>LED를 테이프로 가렸지만 열 감지로 보면 안경다리가 뜨겁습니다. 대만 입시 적발 사례에서 착안.</p>
+      </div>
+      <div class="face">
+        <canvas id="face4" width="64" height="64" aria-label="3단계 일반 안경처럼 보이는 AI 안경 확대"></canvas>
+        <div class="verdict" style="color:var(--muted)">GEN3 · ???</div>
+        <strong>일반 안경과 똑같아 보임</strong>
+        <p>왼쪽 일반 안경과 구분이 안 됩니다. 이제부터는 행동으로 찾아야 합니다.</p>
+      </div>
+    </div>
+
+    <h3 class="sub">일반 안경 디자인</h3>
+    <canvas id="glassesRow" class="strip" width="512" height="64" aria-label="일반 안경 디자인 8종"></canvas>
+    <ul class="strip-labels" style="--n:8">
+      <li>은테</li><li>건메탈 회색테</li><li>금색 동그란 테</li><li>검은 뿔테 <em>미끼</em></li><li>갈색 뿔테</li><li>남색 뿔테</li><li>회색 반무테</li><li>투명테</li>
+    </ul>
+    <h3 class="sub">AI 안경 디자인</h3>
+    <canvas id="aiRow" class="strip" width="384" height="64" aria-label="AI 안경 디자인 6종"></canvas>
+    <ul class="strip-labels" style="--n:6">
+      <li>1세대 · 검은 웨이페어러</li><li>1세대 · 갈색 뿔테</li><li>1세대 · 투명테</li><li>2세대 · 얇은 금속테</li><li>3세대 · 은테</li><li>3세대 · 금색 동그란 테</li>
+    </ul>
+    <p class="lead" style="font-size:14px">AI 안경은 일반 안경 디자인 위에 AI 부품(두꺼운 안경다리, 경첩 카메라, LED)을 얹은 구조입니다. 1세대는 부품이 크게 보이고, 2세대는 작아지고 LED를 가리며, 3세대는 일반 안경 디자인과 똑같습니다. 검은 뿔테 일반 안경은 1세대 AI 안경과 헷갈리게 만드는 미끼입니다.</p>
+  </section>
+
+  <section aria-labelledby="lv-h">
+    <div class="section-head">
+      <h2 id="lv-h">AI 안경 세대</h2>
+      <p class="lead">큰 줄기는 AI 안경입니다. 레벨이 오를수록 안경이 일반 안경을 닮아 가고, 단서가 겉모습에서 행동으로 옮겨 갑니다. 여기에 다른 수법이 조용히 섞여 들어옵니다.</p>
+    </div>
+    <div class="levels">
+      <div class="level">
+        <canvas id="lv1" width="480" height="270" aria-label="1단계 화면"></canvas>
+        <div class="num">1세대 · LV1~</div>
+        <h3>눈에 띄는 AI 안경</h3>
+        <p>두꺼운 테와 LED. 가까이 가서 보기만 하면 찾습니다. 조작법을 익히는 단계.</p>
+      </div>
+      <div class="level">
+        <canvas id="lv2" width="480" height="270" aria-label="2단계 화면"></canvas>
+        <div class="num">2세대 · LV10~</div>
+        <h3>얇은 테, LED 가림</h3>
+        <p>안경다리를 만져 촬영하고, 시험지를 이상한 거리에서 오래 봅니다. 확신이 없으면 열 감지를 씁니다(횟수 제한).</p>
+      </div>
+      <div class="level">
+        <canvas id="lv3" width="480" height="270" aria-label="3단계 화면"></canvas>
+        <div class="num">3세대 · LV25~</div>
+        <h3>일반 안경과 같은 겉모습</h3>
+        <p>한참 멈춰서 문제를 노려보다가 답을 몰아서 쓰고, 가끔 입술이 움직입니다(음성 질문). 그냥 고민하는 학생도 멈춥니다.</p>
+      </div>
+      <div class="level">
+        <canvas id="lv4" width="480" height="270" aria-label="4단계 화면"></canvas>
+        <div class="num">4세대 · LV50~</div>
+        <h3>저발열 + 미끼</h3>
+        <p>발열이 적어 열화상으로도 애매합니다. 부정행위자와 비슷한 습관을 가진 무고한 학생이 늘어납니다.</p>
+      </div>
+    </div>
+    <div class="section-head">
+      <h3 class="sub">수상한 행동</h3>
+      <p class="lead">아래 행동은 부정행위자도 하고 무고한 학생도 합니다. 행동 하나만 보고 잡으면 오인 적발이 됩니다. 언제, 무엇과 이어서 하는지를 봐야 합니다.</p>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>행동</th><th>부정행위자라면</th><th>무고한 학생이라면</th><th>구분 포인트</th></tr></thead>
+        <tbody>
+          <tr><td>안경다리 만지기</td><td>눌러서 문제 촬영</td><td>안경 고쳐 쓰기</td><td>만진 뒤 시험지를 들고 오래 보는지</td></tr>
+          <tr><td>코받침 밀어올리기</td><td>가끔 섞어서 함</td><td>아주 흔한 습관</td><td>이것만으로는 의미 없음</td></tr>
+          <tr><td>안경 벗었다 쓰기</td><td>감독관이 다가오면 벗어서 내려놓음</td><td>렌즈 닦기</td><td>감독관이 가까이 올 때만 하는지</td></tr>
+          <tr><td>두리번거리기</td><td>감독관 위치 확인</td><td>목 스트레칭</td><td>감독관과 눈이 마주치면 바로 멈추는지</td></tr>
+          <tr><td>손을 책상 밑으로</td><td>휴대폰 보기</td><td>다리 긁기, 주머니 정리</td><td>시선도 같이 책상 밑으로 가는지</td></tr>
+          <tr><td>오래 멈춰 노려보기</td><td>AI 답을 기다림</td><td>어려운 문제 고민</td><td>멈춘 뒤 답을 몰아서 쓰는지</td></tr>
+          <tr><td>입술 움직임</td><td>음성으로 질문</td><td>문제를 속으로 읽음</td><td>안경다리 만지기와 같이 나오는지</td></tr>
+          <tr><td>손목 보기</td><td>스마트워치 확인</td><td>시계로 남은 시간 확인</td><td>입실 때 아날로그 시계였는지</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="lead" style="font-size:14px">목업 교실에서도 맨 앞줄 학생들이 코받침 밀기, 렌즈 닦기, 두리번거리기를 습관처럼 합니다. "안경다리 만지기"는 기사로 확인한 단서이고, "구분 포인트"는 대부분 게임용 설정입니다.</p>
+
+    <div class="section-head">
+      <h3 class="sub">수법 계열별 진화</h3>
+      <p class="lead">AI 안경만 진화하는 게 아닙니다. 모든 수법이 계열마다 초급 → 중급 → 고급으로 숨기기 어려워지고, 계열마다 헷갈리게 하는 무고한 행동(미끼)과 잡는 방법이 따로 있습니다.</p>
+    </div>
+    <div class="table-wrap">
+      <table class="family">
+        <thead><tr><th>계열</th><th>초급</th><th>중급</th><th>고급</th><th>미끼 (무고한 학생)</th><th>잡는 방법</th></tr></thead>
+        <tbody>
+          <tr><td><b>AI 안경</b></td><td>1세대: 두꺼운 테, 카메라, LED</td><td>2세대: 얇은 테, LED 가림, 발열</td><td>3·4세대: 일반 안경과 같음, 저발열</td><td>검은 뿔테, 안경 고쳐 쓰기, 렌즈 닦기</td><td>입실 확대경, 열화상(작동 직후), 행동 흐름</td></tr>
+          <tr><td><b>스마트워치</b></td><td>화면이 켜지는 스마트워치</td><td>아날로그처럼 생긴 하이브리드 워치</td><td>손목 안쪽으로 돌려 찬 밴드, 진동으로 답 받기</td><td>아날로그 시계로 남은 시간 확인</td><td>입실·교시 시계 확인, 진동 소리, 손목을 보는 간격</td></tr>
+          <tr><td><b>이어폰</b></td><td>귀에 보이는 무선 이어폰</td><td>피부색 초소형 귓속 이어폰 + 목 뒤 송수신기</td><td>신발·속옷에 숨긴 송수신기</td><td>귀 긁기, 머리 넘기기</td><td>금속 탐지, 전파 탐지기, 혼자 끄덕이는지</td></tr>
+          <tr><td><b>휴대폰</b></td><td>책상 밑 휴대폰</td><td>소매 안·필통 속 휴대폰</td><td>화장실에 숨겨 둔 휴대폰, 여럿이 문자로 답 공유</td><td>다리 긁기, 주머니 정리</td><td>시작 전 수거, 화장실 다녀온 뒤 행동 비교, 같은 타이밍의 여러 학생</td></tr>
+          <tr><td><b>쪽지·메모</b></td><td>손바닥 커닝페이퍼</td><td>지우개 포장지, 필통, 물병 라벨</td><td>허벅지·팔 메모, 책상·벽에 미리 쓴 낙서</td><td>물 마시기, 손 비비기</td><td>소지품 검사, 시험 전 교실 점검, 마시지 않고 오래 드는 물병</td></tr>
+          <tr><td><b>숨긴 카메라</b></td><td>옷깃·단추 카메라</td><td>카메라 펜</td><td>동전 모양 리모컨 + 안경 스캐너</td><td>펜 돌리기, 동전 만지작</td><td>금속 탐지, 쓰지 않는 펜을 세워 두는지</td></tr>
+          <tr><td><b>공모·신호</b></td><td>옆자리 훔쳐보기</td><td>기침·손가락 신호, 시험지 바꿔치기</td><td>미끼 소란: 한 명이 감독관을 부르는 사이 다른 학생이 커닝</td><td>진짜 감기 기침, 질문하러 손 든 학생</td><td>CCTV로 두 학생 동시 관찰, 신호가 번갈아 오가는지</td></tr>
+          <tr><td><b>사람·조직</b></td><td>대리시험 (위조 신분증)</td><td>퇴실 가능 시간에 여럿이 함께 나감</td><td>창밖에서 쪽지 전달, 매수된 동료 감독관</td><td>몸이 안 좋아 일찍 나가는 학생</td><td>수험표 사진 대조, 퇴실 시간 기록, 창가 주시</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="lead" style="font-size:14px">각 칸의 실제 사례와 근거는 아래 "개발용 전체 목록"에 있습니다. 하이브리드 워치, 진동으로 답 받기, 미끼 소란처럼 근거 링크가 없는 칸은 게임용 설정입니다.</p>
+
+    <div class="section-head">
+      <h3 class="sub">감독관 수첩</h3>
+      <p class="lead">AI 안경 말고 다른 수법도 단계가 오를수록 늘어납니다. "새 수법이 추가되었습니다" 같은 안내는 없습니다. 시험에서 직접 잡거나 놓친 뒤 밝혀진 수법만 감독관 수첩에 손글씨 메모로 남습니다. 수첩은 손에 든 감독 명부의 뒷장이라 따로 메뉴가 없고, 시험 중 Q를 누르면 명부를 넘겨 봅니다. 실제로 평가원이 감독관용 "수능 시행 관리 사례집"을 내는 것에서 착안했습니다.</p>
+    </div>
+    <ul class="dex" id="dex" aria-label="감독관 수첩 예시">
+      <li><span class="lv">01 · LV1</span><b>AI 안경 (눈에 띄는)</b><span>잡음</span></li>
+      <li><span class="lv">02 · LV1</span><b>손바닥 커닝페이퍼</b><span>잡음</span></li>
+      <li><span class="lv">04 · LV1</span><b>옆자리 훔쳐보기</b><span>놓침</span></li>
+    </ul>
+    <p class="lead" style="font-size:14px">수첩 30쪽 중 3쪽이 채워진 상태의 예시입니다. 몇 쪽이 남았는지는 게임 안에서 보여 주지 않습니다. 레벨마다 처음 등장하는 수법은 정해져 있지만 게임 안에서는 알려 주지 않습니다.</p>
+    <details class="spoiler">
+      <summary>개발용 전체 목록 30개 (게임 안에서는 안 보임)</summary>
+      <p class="lead" style="font-size:14px; margin-top:10px">"잡는 곳"은 입실 검사, 시험 중 감독, 이벤트 중 어디서 단서가 보이는지입니다. 근거가 기사 링크인 것은 실제 사건이고, "일반 수법"은 널리 알려졌지만 특정 사건 출처를 확인하지 않은 것, "게임 설정"은 지어낸 것입니다.</p>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>#</th><th>등장 레벨</th><th>수법</th><th>잡는 곳</th><th>게임 속 단서</th><th>근거</th></tr></thead>
+          <tbody>
+            <tr><td>1</td><td>1~9</td><td>AI 안경 (눈에 띄는)</td><td>입실·시험</td><td>두꺼운 테, 카메라, LED</td><td><a href="https://www.hankyung.com/article/202606107661Y" target="_blank" rel="noopener">토익 2026 적발</a></td></tr>
+            <tr><td>2</td><td>1~9</td><td>손바닥 커닝페이퍼</td><td>시험</td><td>주먹을 펴서 내려다봄</td><td>일반 수법</td></tr>
+            <tr><td>3</td><td>1~9</td><td>필통·지우개 포장지 속 쪽지</td><td>입실·시험</td><td>지우개를 자꾸 꺼내 만지작</td><td>일반 수법</td></tr>
+            <tr><td>4</td><td>1~9</td><td>옆자리 훔쳐보기</td><td>시험</td><td>고개가 옆으로 반복해서 감</td><td>일반 수법</td></tr>
+            <tr><td>5</td><td>10~24</td><td>AI 안경 (얇은 테, LED 가림)</td><td>시험</td><td>안경다리 만지기, 이상한 거리에서 응시, 테 발열</td><td><a href="https://krdo.com/news/2026/06/26/ai-glasses-are-aiding-cheating-in-exams-test-obsessed-asia-is-ground-zero/" target="_blank" rel="noopener">대만 입시 2026</a></td></tr>
+            <tr><td>6</td><td>10~24</td><td>책상 밑 휴대폰</td><td>시험</td><td>손과 시선이 같이 책상 밑으로</td><td><a href="https://hangyo.com/mobile/article.html?no=9804" target="_blank" rel="noopener">2004 수능 사건</a></td></tr>
+            <tr><td>7</td><td>10~24</td><td>스마트워치로 답 받기</td><td>입실·시험</td><td>손목을 흘끗 봄</td><td><a href="https://www.aljazeera.com/news/2016/5/12/thailand-students-caught-in-high-tech-cheating-scam" target="_blank" rel="noopener">태국 의대 2016</a></td></tr>
+            <tr><td>8</td><td>10~24</td><td>물병 라벨 뒷면 메모</td><td>입실·시험</td><td>물병을 마시지 않고 오래 들고 봄</td><td>일반 수법</td></tr>
+            <tr><td>9</td><td>10~24</td><td>허벅지·팔에 쓴 메모</td><td>시험</td><td>소매를 걷거나 시선이 무릎으로</td><td>일반 수법</td></tr>
+            <tr><td>10</td><td>10~24</td><td>자·계산기 뒷면 메모</td><td>입실</td><td>쓸 일 없는데 자를 들고 봄</td><td>일반 수법</td></tr>
+            <tr><td>11</td><td>25~49</td><td>AI 안경 (일반 안경과 같음)</td><td>시험</td><td>멈췄다가 몰아서 쓰기, 입술 움직임</td><td><a href="https://www.segye.com/newsView/20260802511782" target="_blank" rel="noopener">육안 구분 어려움</a> + 게임 설정</td></tr>
+            <tr><td>12</td><td>25~49</td><td>귓속 초소형 이어폰 + 밖의 조력자</td><td>시험</td><td>귀 만지기, 혼자 고개 끄덕임</td><td><a href="https://www.khan.co.kr/article/202607211645001/" target="_blank" rel="noopener">TOPIK 2026</a></td></tr>
+            <tr><td>13</td><td>25~49</td><td>목 뒤에 붙인 송수신기</td><td>입실·시험</td><td>머리카락으로 목을 가림, 목을 자주 만짐</td><td><a href="https://www.khan.co.kr/article/202607211645001/" target="_blank" rel="noopener">TOPIK 2026</a></td></tr>
+            <tr><td>14</td><td>25~49</td><td>옷깃 카메라로 시험지 촬영</td><td>입실·시험</td><td>시험지를 몸 쪽으로 세워 듦</td><td><a href="https://www.kukinews.com/article/view/kuk201304170016" target="_blank" rel="noopener">토익·텝스 2013</a></td></tr>
+            <tr><td>15</td><td>25~49</td><td>카메라 펜</td><td>입실</td><td>쓰지 않고 펜을 시험지 위에 세움</td><td><a href="https://www.csmonitor.com/World/Global-News/2015/0608/Why-is-China-using-drones-to-catch-college-exam-cheaters" target="_blank" rel="noopener">가오카오 압수품</a></td></tr>
+            <tr><td>16</td><td>25~49</td><td>기침·손가락 수신호 공모</td><td>시험</td><td>두 학생이 번갈아 같은 신호</td><td>일반 수법</td></tr>
+            <tr><td>17</td><td>25~49</td><td>시험지 바꿔치기</td><td>시험</td><td>앞뒤 학생 손이 오감</td><td>일반 수법</td></tr>
+            <tr><td>18</td><td>25~49</td><td>미끼 소란</td><td>시험</td><td>한 학생이 감독관을 부르는 사이 다른 학생이 커닝</td><td>게임 설정</td></tr>
+            <tr><td>19</td><td>50~</td><td>블루투스 슬리퍼</td><td>입실</td><td>신발에 금속 반응, 발을 자꾸 움직임</td><td><a href="https://www.deccanherald.com/india/bluetooth-slippers-how-candidates-tried-to-cheat-in-reet-exam-1034645.html" target="_blank" rel="noopener">인도 교원시험 2021</a></td></tr>
+            <tr><td>20</td><td>50~</td><td>마이크·이어폰을 꿰맨 속옷</td><td>입실</td><td>몸통에 금속 반응, 옷을 자꾸 매만짐</td><td><a href="https://www.csmonitor.com/World/Global-News/2015/0608/Why-is-China-using-drones-to-catch-college-exam-cheaters" target="_blank" rel="noopener">가오카오 압수품</a></td></tr>
+            <tr><td>21</td><td>50~</td><td>동전 모양 리모컨 + 안경 스캐너</td><td>입실·시험</td><td>동전을 만지작거림</td><td><a href="https://www.csmonitor.com/World/Global-News/2015/0608/Why-is-China-using-drones-to-catch-college-exam-cheaters" target="_blank" rel="noopener">가오카오 압수품</a></td></tr>
+            <tr><td>22</td><td>50~</td><td>휴대폰 문자 집단 답 공유</td><td>시험</td><td>여러 학생이 같은 타이밍에 같은 동작</td><td><a href="https://hangyo.com/mobile/article.html?no=9804" target="_blank" rel="noopener">2004 수능 사건</a></td></tr>
+            <tr><td>23</td><td>50~</td><td>시험 중 인터넷에 문제 올리기</td><td>시험</td><td>책상 밑 휴대폰 + 문제를 옮겨 적듯 오래 봄</td><td><a href="https://phys.org/news/2011-03-japan-police-yahoo-exam-probe.amp" target="_blank" rel="noopener">교토대 2011</a></td></tr>
+            <tr><td>24</td><td>50~</td><td>카메라 안경 촬영 후 일찍 퇴실</td><td>시험</td><td>퇴실 가능 시간이 되자마자 여럿이 함께 나감</td><td><a href="https://www.aljazeera.com/news/2016/5/12/thailand-students-caught-in-high-tech-cheating-scam" target="_blank" rel="noopener">태국 의대 2016</a></td></tr>
+            <tr><td>25</td><td>50~</td><td>대리시험 (위조 신분증)</td><td>입실</td><td>수험표 사진과 얼굴이 미묘하게 다름</td><td><a href="https://www.khan.co.kr/article/202607211645001/" target="_blank" rel="noopener">TOPIK 2026</a></td></tr>
+            <tr><td>26</td><td>50~</td><td>책상·벽에 미리 써 둔 낙서</td><td>입실 전 교실 점검</td><td>책상 모서리에 작은 글씨</td><td>일반 수법</td></tr>
+            <tr><td>27</td><td>무작위</td><td>쉬는 시간·화장실 반입</td><td>이벤트</td><td>다녀온 뒤 행동이 달라짐</td><td>게임 설정</td></tr>
+            <tr><td>28</td><td>무작위</td><td>창밖에서 쪽지 전달</td><td>이벤트</td><td>창밖에 사람, 창가 학생이 창문만 봄</td><td><a href="https://www.cbsnews.com/news/indian-parents-scale-school-wall-to-help-students-cheat-on-exams" target="_blank" rel="noopener">인도 비하르 2015</a></td></tr>
+            <tr><td>29</td><td>무작위</td><td>매수된 동료 감독관</td><td>이벤트</td><td>다른 감독관이 답안지를 걷으며 오래 만짐</td><td><a href="https://www.justice.gov/usao-ma/pr/test-taker-college-admissions-case-sentenced" target="_blank" rel="noopener">미국 SAT·ACT 2019</a></td></tr>
+            <tr><td>30</td><td>무작위</td><td>촬영한 시험지 유출</td><td>결과 화면</td><td>다음 시험에서 같은 문제 점수가 비정상</td><td><a href="https://www.timeshighereducation.com/news/checkmate-looms-traditional-tests-amid-ai-glasses-epidemic" target="_blank" rel="noopener">호주 대학 2026</a></td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="lead" style="font-size:14px; margin-top:10px"><b>감독관 도구 해금 후보:</b> 전파 탐지기(실제로 TOPIK 시험장에 도입, 가오카오는 드론으로 전파 탐지), 열 감지, 확대경. 수법이 늘어나는 만큼 도구도 늘어나는 구조입니다.</p>
+    </details>
+    <div class="note">
+      <p><b>근거와 게임 설정 구분:</b> 안경다리 만지기, 이상한 거리에서 응시, 테 발열, 일반 안경과 육안 구분이 어려움은 기사로 확인한 내용입니다. "멈췄다가 몰아서 쓰기", "입술 움직임"은 실제 사례가 확인되지 않은 <b>게임용 설정</b>입니다.</p>
+    </div>
+  </section>
+
+  <section aria-labelledby="result-h">
+    <div class="section-head">
+      <h2 id="result-h">결과 화면</h2>
+      <p class="lead">감독 보고서 형식입니다. 교실 자리 배치도에 적발·놓침·오인을 표시하고, 놓친 학생이 어떤 수법을 썼는지 공개합니다. 여기서 처음 밝혀진 수법이 감독관 수첩에 적힙니다.</p>
+    </div>
+    <canvas id="result" class="screen" width="480" height="270" aria-label="결과 화면 목업"></canvas>
+    <ul class="legend">
+      <li><span class="key">■</span><div><b>주황</b> <span>잡은 부정행위자</span></div></li>
+      <li><span class="key red">■</span><div><b>빨강</b> <span>놓친 부정행위자. 결과 화면에서 처음 공개</span></div></li>
+      <li><span class="key" style="color:#7d8a84">■</span><div><b>회색 빗금</b> <span>잘못 잡은 무고한 학생</span></div></li>
+      <li><span class="key">S</span><div><b>등급</b> <span>적발 수, 오인 수, 남은 시간, 보너스로 S~D 등급</span></div></li>
+    </ul>
+  </section>
+
+  <section aria-labelledby="check-h">
+    <div class="section-head">
+      <h2 id="check-h">정해진 것과 남은 것</h2>
+    </div>
+    <div class="note">
+      <p><b>정함 · 1인칭:</b> 둠 방식의 픽셀 1인칭으로 갑니다.</p>
+      <p><b>정함 · PC 조작:</b> WASD로 걷고 마우스로 시선을 돌립니다(화면 클릭 시 마우스 고정). E 관찰, F 적발, Q 감독관 수첩, Tab으로 CCTV 전환.</p>
+      <p><b>정함 · 입실 검사:</b> 한 판(시험 하루)에 한 번, 시험 시작 전에만 합니다.</p>
+      <p><b>정함 · 모든 레벨이 수능:</b> 레벨 = 감독 경력(N번째 감독), 시험실은 무작위 가상 학교. 난이도는 AI 안경 세대, 부정행위자·미끼 수, 이벤트 빈도로 올립니다.</p>
+      <p><b>남음 · 모바일 조작:</b> 추천은 "바닥을 탭하면 그 자리로 걸어가고, 화면을 드래그하면 시선이 돌아가는" 방식입니다. 조이스틱보다 단순하고 말씀하신 클릭 방식과도 맞습니다. 관찰·적발은 화면 오른쪽 아래 버튼으로 합니다. PC 버전을 먼저 만들고 모바일은 그다음에 정해도 됩니다.</p>
+    </div>
+    <ul class="sources">
+      <li><a href="https://www.korea.kr/news/policyNewsView.do?newsId=148975290" target="_blank" rel="noopener">대한민국 정책브리핑 — 2027학년도 수능 반입 금지 물품(AI 스마트안경 포함)</a></li>
+      <li><a href="https://www.wikitree.co.kr/articles/1174146" target="_blank" rel="noopener">위키트리 — 착용만 해도 시험 무효, 감독관 확인 요청</a></li>
+      <li><a href="https://www.thestar.com.my/aseanplus/aseanplus-news/2026/06/05/china-to-inspect-eyeglasses-to-stop-students-cheating-at-gaokao-exam" target="_blank" rel="noopener">The Star — 중국 가오카오, 안경을 벗어 책상에 두고 검사</a></li>
+      <li><a href="https://www.segye.com/newsView/20260802511782" target="_blank" rel="noopener">세계일보 — 일반 안경과 육안 구분 어려워</a></li>
+      <li><a href="https://krdo.com/news/2026/06/26/ai-glasses-are-aiding-cheating-in-exams-test-obsessed-asia-is-ground-zero/" target="_blank" rel="noopener">CNN/KRDO — 대만 응시생, 프레임 발열과 이상한 응시로 적발</a></li>
+      <li><a href="https://v.daum.net/v/20260802080200800?f=p" target="_blank" rel="noopener">다음 — "안경다리 만지는지 관찰하라"</a></li>
+      <li><a href="https://www.hankyung.com/article/202606107661Y" target="_blank" rel="noopener">한국경제 — 토익 AI 글라스 커닝 첫 적발</a></li>
+      <li><a href="https://cybernews.com/ai-news/exam-smart-glasses/" target="_blank" rel="noopener">Cybernews — 국내 첫 스마트 안경 부정행위 형사 사건</a></li>
+    </ul>
+  </section>
+</div>
+
+<script>
+(() => {
+  // ===== 기본 설정 =====
+  const W = 480, H = 270;
+  const COLS = [72, 160, 248, 336, 424];   // 책상 열 중심 x
+  const ROWS = [86, 128, 170, 212];        // 책상 윗면 y
+  const AI_IDX = 7, WATCH_IDX = 13, DECOY_IDX = 2, SIDE_IDX = 16, STRETCH_IDX = 10, EAR_IDX = 18;
+
+  // 시드 고정 난수 (매번 같은 학생 외형)
+  function rng(seed) {
+    return () => {
+      seed |= 0; seed = seed + 0x6D2B79F5 | 0;
+      let t = Math.imul(seed ^ seed >>> 15, 1 | seed);
+      t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+      return ((t ^ t >>> 14) >>> 0) / 4294967296;
+    };
+  }
+  const rand = rng(20261119);
+  const HAIR = ["#2b2320", "#3d2b22", "#1c1c24", "#5a3a28", "#6b4a2f", "#241a16"];
+  const SHIRT = ["#e4e4ea", "#2f3e63", "#e4e4ea", "#4a5a48", "#2f3e63", "#c9b48a"];
+  const SKIN = ["#f1c9a5", "#e0b48e", "#d6a57f", "#f3d0b0"];
+  const pick = a => a[Math.floor(rand() * a.length)];
+
+  const students = [];
+  for (let r = 0; r < 4; r++) for (let c = 0; c < 5; c++) {
+    const i = r * 5 + c;
+    students.push({
+      i, cx: COLS[c], y: ROWS[r],
+      hair: pick(HAIR), shirt: pick(SHIRT), skin: pick(SKIN),
+      longHair: rand() < 0.4,
+      // 안경 착용 약 55% (20명 중 11명). 근거: 교육부 2025 학생건강검사 시력 이상 58.25%, 고3 표본 조사 안경 74%(2007), 콘택트렌즈 착용자 감안
+      glasses: (i === AI_IDX || i === WATCH_IDX || i === DECOY_IDX || i === 0 || i === 6 || rand() < 0.4) ? "normal" : "none",
+      phase: rand() * 10,
+    });
+  }
+
+  // ===== 안경 디자인 (모양 × 색) =====
+  // 검은 뿔테는 1세대 AI 안경과 헷갈리는 미끼 역할
+  const GSTYLES = [
+    { type: "metal", color: "#b8bcc4", name: "은테" },
+    { type: "metal", color: "#7d8188", name: "건메탈 회색테" },
+    { type: "round", color: "#c9a95a", name: "금색 동그란 테" },
+    { type: "horn",  color: "#1e1e1e", name: "검은 뿔테" },
+    { type: "horn",  color: "#6b4428", name: "갈색 뿔테" },
+    { type: "horn",  color: "#2f3e63", name: "남색 뿔테" },
+    { type: "half",  color: "#7d8188", name: "회색 반무테" },
+    { type: "horn",  color: "#d9d3c7", name: "투명테" },
+  ];
+  {
+    const rand2 = rng(4242);                       // 외형 난수와 분리 (안경 착용 수가 바뀌지 않게)
+    for (const s of students) s.gStyle = GSTYLES[Math.floor(rand2() * GSTYLES.length)];
+    students[AI_IDX].gStyle = GSTYLES[4];           // 목업의 1세대 AI 안경: 갈색 뿔테
+    students[DECOY_IDX].gStyle = GSTYLES[3];        // 미끼: 검은 뿔테 일반 안경
+  }
+  // AI 안경 디자인 = 일반 디자인 + 세대별 AI 부품
+  const AI_DESIGNS = [
+    { gen: 1, style: GSTYLES[3] }, { gen: 1, style: GSTYLES[4] }, { gen: 1, style: GSTYLES[7] },
+    { gen: 2, style: { type: "metal", color: "#3a3d42" } }, { gen: 3, style: GSTYLES[0] }, { gen: 3, style: GSTYLES[2] },
+  ];
+  // 확대 얼굴에 AI 부품 얹기
+  function drawAiParts(g, t, gen, color) {
+    if (gen === 1) {
+      px(g, 10, 27, 8, 3, color); px(g, 47, 27, 6, 3, color);           // 두꺼운 안경다리
+      px(g, 46, 22, 5, 5, color); px(g, 47, 23, 3, 3, "#1d3557"); px(g, 48, 23, 1, 1, "#9ad");   // 카메라
+      if (Math.floor(t * 3) % 2 === 0) { px(g, 52, 23, 2, 2, "#ff3b30"); g.fillStyle = "rgba(255,70,50,0.35)"; g.fillRect(50, 21, 6, 6); }
+      else px(g, 52, 23, 2, 2, "#5a1a16");
+    } else if (gen === 2) {
+      px(g, 46, 27, 5, 3, color); px(g, 47, 25, 3, 2, "#3a3a3a");        // 작은 경첩 + LED 가린 테이프
+      px(g, 47, 28, 1, 1, "#1d3557");                                     // 작은 카메라 구멍
+    }
+    // 3세대: 겉으로 보이는 부품 없음
+  }
+
+  // 작은 학생 스프라이트용 안경 (렌즈 3×3)
+  function drawSpriteGlasses(g, x, ey, st) {
+    g.fillStyle = st.color;
+    for (const lx of [x, x + 5]) {
+      if (st.type === "round") {
+        g.fillRect(lx + 1, ey - 1, 1, 1); g.fillRect(lx + 1, ey + 1, 1, 1);
+        g.fillRect(lx, ey, 1, 1); g.fillRect(lx + 2, ey, 1, 1);
+      } else if (st.type === "half") {
+        g.fillRect(lx, ey - 1, 3, 1);
+      } else {
+        g.fillRect(lx, ey - 1, 3, 1); g.fillRect(lx, ey + 1, 3, 1);
+        if (st.type === "horn") g.fillRect(lx, ey - 2, 3, 1);   // 뚜테: 윗테만 두껍게 (안쪽을 채우면 선글라스처럼 보임)
+      }
+    }
+    g.fillRect(x + 3, ey, 2, 1);                   // 브리지
+  }
+
+  // 64×64 확대 얼굴용 안경
+  function drawFaceGlasses(g, st) {
+    const c = st.color;
+    if (st.type === "metal") {
+      g.strokeStyle = c; g.lineWidth = 1;
+      g.strokeRect(19.5, 25.5, 11, 8); g.strokeRect(34.5, 25.5, 11, 8);
+      px(g, 31, 28, 3, 1, c); px(g, 14, 28, 6, 1, c); px(g, 46, 28, 4, 1, c);
+    } else if (st.type === "round") {
+      g.strokeStyle = c; g.lineWidth = 1.5;
+      for (const ex of [25, 40]) { g.beginPath(); g.ellipse(ex, 29.5, 6, 5, 0, 0, Math.PI * 2); g.stroke(); }
+      px(g, 31, 28, 3, 1, c); px(g, 14, 28, 5, 1, c); px(g, 46, 28, 4, 1, c);
+    } else if (st.type === "half") {
+      for (const x0 of [19, 34]) { px(g, x0, 25, 12, 2, c); px(g, x0, 25, 1, 5, c); px(g, x0 + 11, 25, 1, 5, c); }
+      px(g, 31, 26, 3, 1, c); px(g, 14, 26, 5, 1, c); px(g, 46, 26, 4, 1, c);
+    } else {                                        // 뿔테
+      for (const x0 of [18, 33]) {
+        px(g, x0, 24, 13, 3, c); px(g, x0, 33, 13, 2, c);
+        px(g, x0, 24, 2, 11, c); px(g, x0 + 11, 24, 2, 11, c);
+      }
+      px(g, 31, 27, 2, 2, c); px(g, 12, 27, 6, 2, c); px(g, 46, 27, 5, 2, c);
+    }
+  }
+
+  // ===== 학생 행동 (단계별) =====
+  // 이번 단계의 부정행위자인가 (4단계는 2명)
+  const isCheater = (s, level) => s.i === AI_IDX || (level === 4 && s.i === WATCH_IDX);
+  // 안경 겉모습: 1단계 두꺼운 AI 안경 → 2단계 얇은 검은 테 → 3·4단계 일반 안경과 같음
+  function glassesLook(s, level) {
+    if (s.glasses === "none") return "none";
+    if (!isCheater(s, level)) return "normal";
+    return level === 1 ? "ai" : level === 2 ? "thin" : "normal";
+  }
+
+  function behave(s, t, level) {
+    const i = s.i;
+    if (isCheater(s, level)) {
+      const c = (t + (i === WATCH_IDX ? 3.5 : 0)) % 7;
+      if (level <= 2) {
+        if (c < 1.4) return "write";
+        if (c < 2) return "lookaround";    // 감독관 위치 확인
+        if (c < 3.5) return "temple";      // 안경다리 눌러 촬영
+        if (c < 5) return "paperup";       // 시험지를 들고 오래 응시
+        if (c < 5.5) return "nosepush";    // 코받침 밀어올리기
+        return "write";
+      }
+      // 3·4단계 (게임 설정): 멈춰서 노려봄 → 입술 움직임 → 답을 몰아서 씀
+      if (c < 3) return "stare";
+      if (c < 3.8) return "mouth";
+      if (c < 5.5) return "burst";
+      return "write";
+    }
+    // 미끼: 그냥 고민하느라 멈추는 학생 (3단계 이상)
+    if (i === 4 && level >= 3) { const c = (t + 1) % 8; return c < 3 ? "stare" : "write"; }
+    if (i === DECOY_IDX) { const c = t % 9; return c > 4 && c < 5.2 ? "temple" : "write"; }
+    if (i === SIDE_IDX) { const c = t % 7; return c > 2 && c < 4.5 ? "side" : "write"; }
+    if (i === STRETCH_IDX) { const c = t % 11; return c > 6 && c < 7.6 ? "stretch" : "write"; }
+    if (i === EAR_IDX) { const c = t % 8; return c > 1 && c < 2 ? "ear" : "write"; }
+    // 무고한 학생의 습관 (부정행위와 비슷해 보이는 미끼)
+    if (i === 0) { const c = (t + 2) % 6; return c < 0.6 ? "nosepush" : "write"; }
+    if (i === 6) { const c = (t + 4) % 12; return c < 2.2 ? "glassesoff" : "write"; }   // 렌즈 닦기
+    if (i === 12) { const c = (t + 1) % 9; return c < 1.6 ? "lookaround" : "write"; }   // 목 스트레칭
+    // 다른 수법 (단계가 오르면 조용히 추가됨)
+    if (i === 14 && level >= 2) { const c = t % 8; return c > 3 && c < 5.5 ? "underdesk" : "write"; }                       // 책상 밑 휴대폰
+    if (i === 17 && level >= 2) { const c = t % 6; return (c > 1 && c < 1.8) || (c > 3.2 && c < 4) ? "wrist" : "write"; }   // 스마트워치
+    if (i === 9 && level >= 3) { const c = t % 7; return c > 2 && c < 4 ? "ear" : "write"; }                                // 이어피스
+    const c = (t + s.phase) % 10;
+    return c > 8.6 ? "think" : "write";
+  }
+
+  const px = (g, x, y, w, h, col) => { g.fillStyle = col; g.fillRect(x | 0, y | 0, w, h); };
+
+  // ===== 교실 배경 =====
+  const WINDOWS = [[34, 96], [192, 96], [350, 96]];
+  function drawRoom(g) {
+    // 바닥 (나무 판자)
+    for (let y = 46; y < H; y += 6) {
+      px(g, 0, y, W, 6, ((y / 6) | 0) % 2 ? "#86684a" : "#7c5f43");
+      for (let x = ((y * 7) % 40); x < W; x += 40) px(g, x, y, 1, 6, "#6a5039");
+    }
+    // 뒷벽
+    px(g, 0, 0, W, 44, "#b9b3a1");
+    px(g, 0, 40, W, 6, "#5c4a3a");
+    for (const [x, w] of WINDOWS) {
+      px(g, x - 2, 6, w + 4, 30, "#e6e2d6");
+      px(g, x, 8, w, 26, "#8fbfd4");
+      px(g, x + w / 2 - 1, 8, 2, 26, "#e6e2d6");
+      px(g, x, 20, w, 2, "#e6e2d6");
+      px(g, x + 4, 10, 10, 2, "#d6f0fa");
+      px(g, x + w / 2 + 5, 24, 8, 2, "#d6f0fa");
+    }
+    // 시계
+    px(g, 150, 12, 12, 12, "#2a2a2a"); px(g, 151, 13, 10, 10, "#f2efe6");
+    px(g, 155, 15, 1, 4, "#222"); px(g, 155, 18, 3, 1, "#222");
+    // 사물함
+    for (let x = 304; x < 344; x += 10) { px(g, x, 12, 9, 26, "#6f7d86"); px(g, x + 6, 22, 2, 2, "#cfd6da"); }
+    // 교탁 (화면 아래, 칠판은 화면 밖)
+    px(g, 196, 254, 88, 16, "#6b4d33"); px(g, 196, 254, 88, 3, "#8a6644");
+  }
+
+  // ===== 학생 그리기 =====
+  function drawStudent(g, s, t, level, opts) {
+    const { cx, y } = s;
+    if (opts.empty) {                               // 퇴실한 학생의 빈자리
+      px(g, cx - 8, y - 16, 16, 4, "#4b3a2c");
+      px(g, cx - 7, y - 12, 14, 12, "#5a4636");      // 의자 등받이·좌석
+      px(g, cx - 14, y, 28, 10, "#c99a5e");
+      px(g, cx - 14, y + 10, 28, 3, "#94703f");
+      px(g, cx - 13, y + 13, 2, 4, "#5a4430"); px(g, cx + 11, y + 13, 2, 4, "#5a4430");
+      return;
+    }
+    const pose = behave(s, t, level);
+    const look = glassesLook(s, level);
+    const wob = pose === "stare" || pose === "mouth" ? 0
+      : Math.floor(t * (pose === "burst" ? 16 : 6) + s.i) % 3;
+    const hx = pose === "side" ? 1                // 고개 옆으로
+      : pose === "lookaround" ? (Math.floor(t * 2.5) % 2 ? 1 : -1) : 0;   // 두리번
+    const down = pose === "wrist" || pose === "underdesk" ? 1 : 0;        // 고개 숙임
+
+    // 의자 등받이
+    px(g, cx - 8, y - 16, 16, 4, "#4b3a2c");
+    // 몸
+    px(g, cx - 7, y - 9, 14, 10, s.shirt);
+    if (s.shirt === "#e4e4ea") px(g, cx - 1, y - 9, 2, 6, "#3a4a7a"); // 넥타이
+    // 머리
+    const hy = y - 19 + down;
+    if (s.longHair) { px(g, cx - 6 + hx, hy + 1, 12, 9, s.hair); }
+    px(g, cx - 5 + hx, hy, 10, 10, s.skin);
+    px(g, cx - 5 + hx, hy - 1, 10, 4, s.hair);
+    px(g, cx - 6 + hx, hy, 1, 4, s.hair); px(g, cx + 5 + hx, hy, 1, 4, s.hair);
+    // 눈
+    const ex = pose === "side" ? 1 : pose === "lookaround" ? (hx > 0 ? 1 : 0) : 0;
+    const ey = hy + 5 + (pose === "wrist" || pose === "write" || pose === "burst" || pose === "stare" || pose === "mouth" ? 1 : 0);
+    px(g, cx - 3 + hx + ex, ey, 1, 1, "#1a1414");
+    px(g, cx + 2 + hx + ex, ey, 1, 1, "#1a1414");
+    // 입술 움직임 (음성 질문, 게임 설정)
+    if (pose === "mouth" && Math.floor(t * 8) % 2 === 0) px(g, cx - 1 + hx, ey + 3, 2, 1, "#8a3f38");
+    // 안경
+    if (look !== "none" && pose !== "glassesoff") {
+      const st = s.gStyle || GSTYLES[0];
+      if (look === "normal") {
+        drawSpriteGlasses(g, cx - 4 + hx, ey, st);                         // 학생마다 다른 디자인
+      } else if (look === "ai") {
+        drawSpriteGlasses(g, cx - 4 + hx, ey, st);                         // 1세대: 디자인 + 두꺼운 안경다리
+        g.fillStyle = st.color === "#d9d3c7" ? "#8a8478" : st.color;
+        g.fillRect(cx - 6 + hx, ey - 1, 2, 2); g.fillRect(cx + 4 + hx, ey - 1, 2, 2);
+      } else if (look === "thin") {
+        drawSpriteGlasses(g, cx - 4 + hx, ey, { type: "metal", color: "#3a3d42" });
+      } else {
+        g.fillStyle = look === "ai" ? "#111" : "#2a2a2a";
+        g.fillRect(cx - 4 + hx, ey - 1, 3, 1); g.fillRect(cx - 4 + hx, ey + 1, 3, 1);
+        g.fillRect(cx + 1 + hx, ey - 1, 3, 1); g.fillRect(cx + 1 + hx, ey + 1, 3, 1);
+        g.fillRect(cx - 1 + hx, ey, 2, 1);
+        if (look === "ai") { g.fillRect(cx - 6 + hx, ey, 2, 1); g.fillRect(cx + 4 + hx, ey, 2, 1); }
+      }
+    }
+    // AI 안경 촬영 LED (1단계만 보임, 2단계부터는 테이프로 가림)
+    if (look === "ai" && (pose === "temple" || pose === "paperup")) {
+      const on = Math.floor(t * 4) % 2 === 0;
+      const lx = cx - 6 + hx, ly = ey - 1;
+      if (on && opts.showTell(s)) {
+        px(g, lx, ly, 1, 1, "#ff3b30");
+        opts.lights.push({ x: lx, y: ly, r: 11, c: [255, 70, 50], s: 0.95 });
+      }
+    }
+    // 책상
+    px(g, cx - 14, y, 28, 10, "#c99a5e");
+    px(g, cx - 14, y + 10, 28, 3, "#94703f");
+    px(g, cx - 13, y + 13, 2, 4, "#5a4430"); px(g, cx + 11, y + 13, 2, 4, "#5a4430");
+    // 시험지 & 손
+    const skin = s.skin;
+    if (pose === "paperup") {
+      px(g, cx - 6, hy + 6, 12, 8, "#f4f2ea");
+      px(g, cx - 4, hy + 8, 8, 1, "#9aa"); px(g, cx - 4, hy + 10, 6, 1, "#9aa");
+      px(g, cx - 8, hy + 9, 2, 2, skin); px(g, cx + 6, hy + 9, 2, 2, skin);
+    } else {
+      px(g, cx - 6, y + 2, 11, 7, "#f4f2ea");
+      px(g, cx - 5, y + 4, 8, 1, "#aab"); px(g, cx - 5, y + 6, 6, 1, "#aab");
+      if (pose === "temple") {
+        px(g, cx + 6 + hx, hy + 4, 2, 6, s.shirt);
+        px(g, cx + 5 + hx, hy + 3, 2, 2, skin);
+        px(g, cx - 8, y + 4, 2, 2, skin);
+      } else if (pose === "wrist") {
+        px(g, cx - 7, y - 2, 6, 3, s.shirt);
+        px(g, cx - 4, y - 2, 2, 2, "#222"); // 스마트워치
+        px(g, cx + 3, y + 4, 2, 2, skin);
+      } else if (pose === "stretch") {
+        px(g, cx - 9, hy - 6, 2, 12, s.shirt); px(g, cx + 7, hy - 6, 2, 12, s.shirt);
+        px(g, cx - 9, hy - 8, 2, 2, skin); px(g, cx + 7, hy - 8, 2, 2, skin);
+      } else if (pose === "ear") {
+        px(g, cx - 8, hy + 4, 2, 6, s.shirt); px(g, cx - 7, hy + 3, 2, 2, skin);
+        px(g, cx + 3, y + 4, 2, 2, skin);
+      } else if (pose === "nosepush") {               // 검지로 코받침 밀어올리기
+        px(g, cx + 2 + hx, hy + 8, 2, 6, s.shirt);
+        px(g, cx - 1 + hx, ey - 1, 2, 3, skin);
+        px(g, cx - 8, y + 4, 2, 2, skin);
+      } else if (pose === "glassesoff") {             // 안경을 벗어 렌즈 닦기
+        const w = Math.floor(t * 6) % 2;
+        px(g, cx - 5, y - 4, 10, 3, "#e4e4ea");        // 닦는 천
+        g.fillStyle = (s.gStyle || GSTYLES[0]).color;
+        g.fillRect(cx - 4 + w, y - 6, 3, 1); g.fillRect(cx + 1 + w, y - 6, 3, 1); g.fillRect(cx - 1 + w, y - 6, 2, 1);
+        px(g, cx - 7, y - 4, 2, 2, skin); px(g, cx + 5, y - 4, 2, 2, skin);
+      } else if (pose === "underdesk") {              // 손이 책상 밑으로 (손이 안 보임)
+        px(g, cx - 7, y - 1, 3, 2, s.shirt); px(g, cx + 4, y - 1, 3, 2, s.shirt);
+      } else if (pose === "think") {
+        px(g, cx - 1, hy + 10, 2, 2, skin); px(g, cx + 3, y + 4, 2, 2, skin);
+      } else {
+        px(g, cx - 8, y + 4, 2, 2, skin);
+        px(g, cx + 2 + wob, y + 4, 2, 2, skin);           // 필기하는 손
+        px(g, cx + 3 + wob, y + 3, 1, 2, "#333");         // 펜
+      }
+    }
+  }
+
+  // ===== 교사 =====
+  function teacherPos(t) {
+    const tx = Math.round(240 + Math.sin(t * 0.33) * 130);
+    const ty = 250;
+    const dir = -Math.PI / 2 + Math.sin(t * 0.5 + 1) * 0.35;
+    return { tx, ty, dir };
+  }
+  function drawTeacher(g, t, p) {
+    const { tx, ty } = p;
+    const step = Math.floor(t * 5) % 2;
+    px(g, tx - 4, ty + 4, 3, 7 - step, "#23262e");
+    px(g, tx + 1, ty + 4, 3, 6 + step, "#23262e");
+    px(g, tx - 6, ty - 8, 12, 12, "#39435a");
+    px(g, tx - 7, ty - 6, 2, 9, "#39435a"); px(g, tx + 5, ty - 6, 2, 9, "#39435a");
+    px(g, tx + 4, ty - 6, 3, 2, "#f0b54a"); // 감독관 완장
+    px(g, tx - 4, ty - 17, 8, 9, "#2a2420"); // 뒷머리
+    px(g, tx - 5, ty - 13, 1, 2, "#e0b48e"); px(g, tx + 4, ty - 13, 1, 2, "#e0b48e");
+  }
+
+  // ===== 조명 (LUT 방식) =====
+  // 빛의 세기를 계단식으로 나누고, 단계마다 정해 둔 색조(램프)를 곱한다
+  const PRESETS = {
+    day:      { amb: 0.80, win: 0.50, lo: [0.55, 0.50, 0.62], hi: [1.10, 1.04, 0.90] },
+    overcast: { amb: 0.66, win: 0.26, lo: [0.48, 0.52, 0.62], hi: [0.98, 1.00, 1.04] },
+    dark:     { amb: 0.34, win: 0.16, lo: [0.20, 0.24, 0.42], hi: [0.90, 0.92, 1.05] },
+    dim:      { amb: 0.52, win: 0.30, lo: [0.30, 0.32, 0.52], hi: [0.95, 0.95, 1.06] },
+  };
+  const staticLight = {};
+  function lightMap(name, kind) {
+    const key = name + ":" + (kind || "top");
+    if (staticLight[key]) return staticLight[key];
+    const p = PRESETS[name], m = new Float32Array(W * H);
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+      let l = p.amb;
+      if (kind === "fp") {
+        // 1인칭: 왼쪽 창문 쪽이 밝고, 화면 아래(가까운 곳)가 조금 더 밝다
+        l += p.win * Math.max(0, 1 - x / (W * 0.7)) + 0.12 * (y / H);
+      } else if (y < 44) {
+        for (const [wx, ww] of WINDOWS) if (x >= wx && x < wx + ww && y >= 8 && y < 34) l = 1.15;
+      } else {
+        const sx = x - (y - 44) * 0.45;
+        let inPatch = 0;
+        for (const [wx, ww] of WINDOWS) if (sx >= wx && sx < wx + ww) inPatch = 1;
+        l += p.win * Math.max(0, 1 - (y - 44) / 200) * (0.45 + 0.55 * inPatch);
+      }
+      m[y * W + x] = l;
+    }
+    return (staticLight[name] = m);
+  }
+
+  function applyLight(src, dst, presetName, lights, cone, kind) {
+    const p = PRESETS[presetName], m = lightMap(presetName, kind);
+    const s = src.data, d = dst.data;
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+      const k = y * W + x, o = k * 4;
+      let l = m[k];
+      if (cone) {
+        const dx = x - cone.tx, dy = y - (cone.ty - 12);
+        const dist = Math.hypot(dx, dy);
+        let a = Math.atan2(dy, dx) - cone.dir;
+        a = Math.atan2(Math.sin(a), Math.cos(a));
+        const inside = Math.abs(a) < 0.5 && dist < 230;
+        l *= inside ? 1.25 : 0.55;
+      }
+      const q = Math.round(l * 6) / 6;           // 계단식 명암 (픽셀 느낌)
+      const u = Math.min(1, Math.max(0, q));
+      const tr = p.lo[0] + (p.hi[0] - p.lo[0]) * u;
+      const tg = p.lo[1] + (p.hi[1] - p.lo[1]) * u;
+      const tb = p.lo[2] + (p.hi[2] - p.lo[2]) * u;
+      d[o] = s[o] * q * tr; d[o + 1] = s[o + 1] * q * tg; d[o + 2] = s[o + 2] * q * tb; d[o + 3] = 255;
+    }
+    // 점광원 (LED 빛 번짐), 3단계로 끊어서
+    for (const L of lights) {
+      for (let y = Math.max(0, L.y - L.r); y <= Math.min(H - 1, L.y + L.r); y++)
+        for (let x = Math.max(0, L.x - L.r); x <= Math.min(W - 1, L.x + L.r); x++) {
+          const dd = Math.hypot(x - L.x, y - L.y) / L.r;
+          if (dd >= 1) continue;
+          const gl = Math.ceil((1 - dd) * (1 - dd) * 3) / 3 * L.s * 0.55;
+          const o = (y * W + x) * 4;
+          d[o] = Math.min(255, d[o] + L.c[0] * gl);
+          d[o + 1] = Math.min(255, d[o + 1] + L.c[1] * gl);
+          d[o + 2] = Math.min(255, d[o + 2] + L.c[2] * gl);
+        }
+    }
+  }
+
+  // ===== 화면 하나 = 뷰 =====
+  function makeView(canvas, cfg) {
+    const out = canvas.getContext("2d");
+    const base = document.createElement("canvas");
+    base.width = W; base.height = H;
+    const g = base.getContext("2d");
+    const dst = out.createImageData(W, H);
+    return { canvas, out, g, dst, cfg };
+  }
+
+  function inCone(cone, x, y) {
+    const dx = x - cone.tx, dy = y - (cone.ty - 12);
+    let a = Math.atan2(dy, dx) - cone.dir;
+    a = Math.atan2(Math.sin(a), Math.cos(a));
+    return Math.abs(a) < 0.5 && Math.hypot(dx, dy) < 230;
+  }
+
+  // ===== 1인칭 렌더러 (방은 원근 다각형, 학생은 빌보드 스프라이트) =====
+  const F = 250;                                   // 초점 거리(픽셀)
+  const NEAR = 0.12;
+  const SPX = 0.036;                               // 스프라이트 1픽셀 = 월드 0.036m
+  const COLX = [1.2, 3.1, 5.0, 6.9, 8.8];
+  const ROWZ = [4.0, 6.2, 8.4, 10.6];
+  const ROOM_W = 10, ROOM_D = 13.5, ROOM_H = 3;
+  const SPR_W = 32, SPR_H = 42;
+  const sprite = document.createElement("canvas");
+  sprite.width = SPR_W; sprite.height = SPR_H;
+  const sg = sprite.getContext("2d");
+
+  function fpCamera(t) {
+    return {
+      x: 4.05,
+      z: 1.0 + (1 - Math.cos(t * 0.3)) * 1.05,
+      y: 1.55 + Math.sin(t * 6) * 0.008,
+      yaw: Math.sin(t * 0.35) * 0.5,
+    };
+  }
+  function toCam(p, cam) {
+    const dx = p[0] - cam.x, dz = p[2] - cam.z;
+    const c = Math.cos(cam.yaw), s = Math.sin(cam.yaw);
+    return [dx * c - dz * s, p[1] - cam.y, dx * s + dz * c];
+  }
+  function clipNear(poly) {
+    const out = [];
+    for (let i = 0; i < poly.length; i++) {
+      const a = poly[i], b = poly[(i + 1) % poly.length];
+      const ain = a[2] >= NEAR, bin = b[2] >= NEAR;
+      if (ain) out.push(a);
+      if (ain !== bin) {
+        const k = (NEAR - a[2]) / (b[2] - a[2]);
+        out.push([a[0] + (b[0] - a[0]) * k, a[1] + (b[1] - a[1]) * k, NEAR]);
+      }
+    }
+    return out;
+  }
+  const proj = q => [W / 2 + q[0] / q[2] * F, H / 2 - q[1] / q[2] * F];
+  function quad(g, cam, pts, col) {
+    const c = clipNear(pts.map(p => toCam(p, cam)));
+    if (c.length < 3) return;
+    g.fillStyle = col;
+    g.beginPath();
+    c.forEach((q, i) => { const [x, y] = proj(q); i ? g.lineTo(x, y) : g.moveTo(x, y); });
+    g.closePath(); g.fill();
+  }
+  // 벽에 붙은 직사각형: 왼쪽 벽(x 고정), 뒷벽(z 고정)
+  const onLeft  = (z0, z1, y0, y1, x = 0.01) => [[x, y0, z0], [x, y0, z1], [x, y1, z1], [x, y1, z0]];
+  const onRight = (z0, z1, y0, y1, x = ROOM_W - 0.01) => [[x, y0, z1], [x, y0, z0], [x, y1, z0], [x, y1, z1]];
+  const onBack  = (x0, x1, y0, y1, z = ROOM_D - 0.01) => [[x0, y0, z], [x1, y0, z], [x1, y1, z], [x0, y1, z]];
+
+  function drawRoomFP(g, cam) {
+    quad(g, cam, [[0, ROOM_H, 0], [ROOM_W, ROOM_H, 0], [ROOM_W, ROOM_H, ROOM_D], [0, ROOM_H, ROOM_D]], "#c9c6ba");
+    // 천장 형광등 (꺼짐)
+    for (let z = 2; z < ROOM_D; z += 3.5) for (const x of [2.5, 7.5])
+      quad(g, cam, [[x - 0.8, ROOM_H - 0.01, z], [x + 0.8, ROOM_H - 0.01, z], [x + 0.8, ROOM_H - 0.01, z + 0.3], [x - 0.8, ROOM_H - 0.01, z + 0.3]], "#e9e7df");
+    // 바닥 판자 줄무늬
+    for (let z = 0, k = 0; z < ROOM_D; z += 0.45, k++)
+      quad(g, cam, [[0, 0, z], [ROOM_W, 0, z], [ROOM_W, 0, z + 0.45], [0, 0, z + 0.45]], k % 2 ? "#86684a" : "#7c5f43");
+    // 벽
+    quad(g, cam, onBack(0, ROOM_W, 0, ROOM_H, ROOM_D), "#b9b3a1");
+    quad(g, cam, onLeft(0, ROOM_D, 0, ROOM_H, 0), "#b3ad9b");
+    quad(g, cam, onRight(0, ROOM_D, 0, ROOM_H, ROOM_W), "#aaa492");
+    // 걸레받이
+    quad(g, cam, onBack(0, ROOM_W, 0, 0.15), "#5c4a3a");
+    quad(g, cam, onLeft(0, ROOM_D, 0, 0.15), "#5c4a3a");
+    quad(g, cam, onRight(0, ROOM_D, 0, 0.15), "#5c4a3a");
+    // 왼쪽 창문 3개
+    for (const z0 of [1.5, 5.5, 9.5]) {
+      quad(g, cam, onLeft(z0 - 0.08, z0 + 3.08, 0.92, 2.48), "#e6e2d6");
+      quad(g, cam, onLeft(z0, z0 + 3, 1.0, 2.4, 0.02), "#8fbfd4");
+      quad(g, cam, onLeft(z0 + 1.47, z0 + 1.53, 1.0, 2.4, 0.03), "#e6e2d6");
+      quad(g, cam, onLeft(z0 + 0.2, z0 + 0.9, 2.1, 2.2, 0.03), "#d6f0fa");
+    }
+    // 뒷벽: 게시판, 시계, 사물함
+    quad(g, cam, onBack(0.8, 3.6, 1.1, 2.2), "#6e5a3e");
+    quad(g, cam, onBack(0.9, 3.5, 1.2, 2.1, ROOM_D - 0.02), "#a88a5c");
+    quad(g, cam, onBack(1.2, 1.8, 1.5, 1.9, ROOM_D - 0.03), "#f2efe6");
+    quad(g, cam, onBack(2.3, 3.1, 1.4, 1.95, ROOM_D - 0.03), "#e8d27a");
+    quad(g, cam, onBack(4.7, 5.3, 2.2, 2.7), "#2a2a2a");
+    quad(g, cam, onBack(4.75, 5.25, 2.25, 2.65, ROOM_D - 0.02), "#f2efe6");
+    for (let x = 6; x < 9.6; x += 0.6) {
+      quad(g, cam, onBack(x, x + 0.56, 0.15, 1.9), "#6f7d86");
+      quad(g, cam, onBack(x + 0.4, x + 0.48, 1.0, 1.1, ROOM_D - 0.02), "#cfd6da");
+    }
+    // 뒷벽 방송 스피커
+    quad(g, cam, onBack(7.2, 8.0, 2.25, 2.8), "#3a3a3a");
+    quad(g, cam, onBack(7.28, 7.92, 2.31, 2.74, ROOM_D - 0.02), "#5a5a5a");
+    for (let yy = 2.36; yy < 2.72; yy += 0.08) quad(g, cam, onBack(7.32, 7.88, yy, yy + 0.03, ROOM_D - 0.03), "#2a2a2a");
+    // 오른쪽 벽: 뒷문
+    quad(g, cam, onRight(10.8, 12.6, 0, 2.2), "#6b4d33");
+    quad(g, cam, onRight(11.0, 11.6, 1.3, 2.0, ROOM_W - 0.02), "#8fbfd4");
+  }
+
+  // 감독 명부(클립보드)를 든 손
+  function drawClipboard(g, t) {
+    const bob = Math.round(Math.sin(t * 6) * 1.5);
+    const x = W - 96, y = H - 70 + bob;
+    px(g, x, y, 62, 80, "#5a3f28");
+    px(g, x + 4, y + 6, 54, 74, "#f4f2ea");
+    px(g, x + 22, y - 3, 18, 8, "#9aa0a8");
+    for (let i = 0; i < 8; i++) {
+      px(g, x + 10, y + 16 + i * 7, 4, 4, i === 1 || i === 4 ? "#ff5a4f" : "#9aa");
+      px(g, x + 18, y + 17 + i * 7, 26 - (i % 3) * 5, 2, "#aab");
+    }
+    px(g, x - 6, y + 40, 16, 14, "#e0b48e");          // 손
+    px(g, x - 14, y + 46, 12, 30, "#39435a");         // 소매
+  }
+
+  // ===== LPC 비교용 학생 =====
+  // LPC 앉은 자세 시트(3프레임 가로) 중 세 번째 = 의자에 앉은 정면 자세
+  const LPC_URIS = {"a": "data:image/png;base64,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", "b": "data:image/png;base64,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", "c": "data:image/png;base64,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"};
+  const lpcImgs = Object.values(LPC_URIS).map(u => { const im = new Image(); im.src = u; return im; });
+  const lpcSprite = document.createElement("canvas");
+  lpcSprite.width = 64; lpcSprite.height = 64;
+  const lg = lpcSprite.getContext("2d");
+  lg.imageSmoothingEnabled = false;
+  function drawLpcStudent(s, empty) {
+    lg.clearRect(0, 0, 64, 64);
+    px(lg, 22, 30, 20, 18, "#5a4636");                                     // 의자 등받이
+    if (!empty) {
+      const im = lpcImgs[s.i % lpcImgs.length];
+      if (im.complete) lg.drawImage(im, 128, 0, 64, 64, 0, -4, 64, 64);
+    }
+    // 책상 (LPC처럼 외곽선 있는 나무)
+    px(lg, 14, 44, 36, 13, "#3a2a20");
+    px(lg, 15, 45, 34, 8, "#c99a5e"); px(lg, 15, 45, 34, 2, "#ddb27a");
+    px(lg, 15, 53, 34, 3, "#94703f");
+    px(lg, 16, 56, 3, 8, "#3a2a20"); px(lg, 45, 56, 3, 8, "#3a2a20");
+    if (!empty) { px(lg, 24, 46, 14, 6, "#f4f2ea"); px(lg, 26, 48, 9, 1, "#aab"); px(lg, 26, 50, 7, 1, "#aab"); }
+  }
+
+  // 퇴실하는 학생 (뒷모습, 서 있는 자세)
+  function drawStanding(g, s, t) {
+    const step = Math.floor(t * 5) % 2;
+    px(g, 11, 28, 4, 13 - step, "#3a3f4c"); px(g, 17, 28, 4, 12 + step, "#3a3f4c");   // 다리
+    px(g, 10, 40 - step, 5, 2, "#151515"); px(g, 17, 39 + step, 5, 2, "#151515");     // 신발
+    px(g, 8, 14, 16, 15, s.shirt);                                                     // 등
+    px(g, 15, 15, 2, 13, "rgba(0,0,0,0.18)");                                         // 등 솔기
+    px(g, 6, 15, 2, 11, s.shirt); px(g, 24, 15, 2, 11, s.shirt);                      // 팔
+    px(g, 6, 26, 2, 2, s.skin); px(g, 24, 26, 2, 2, s.skin);                          // 손
+    px(g, 13, 12, 6, 2, s.skin);                                                       // 목
+    px(g, 12, 13, 8, 1, "#f4f2ea");                                                   // 옷깃
+    px(g, 12, 3, 8, 9, s.hair); px(g, 11, 4, 10, 7, s.hair);                          // 뒷머리
+    px(g, 10, 6, 1, 3, s.skin); px(g, 21, 6, 1, 3, s.skin);                           // 귀
+  }
+
+  const CATCH_CYCLE = 9;
+  function catchStep(t) {
+    const ph = t % CATCH_CYCLE;
+    return ph < 2 ? 0 : ph < 3 ? 1 : ph < 6.8 ? 2 : 3;
+  }
+
+  function renderFP(v, t) {
+    const { g, out, dst, cfg } = v;
+    const demo = !!cfg.catchDemo;
+    const ph = t % CATCH_CYCLE;
+    const cam = demo ? { x: 4.2, z: 3.6, y: 1.55, yaw: 0.32 }
+      : cfg.fixedCam ? { x: 4.05, z: 2.2, y: 1.55, yaw: 0.12 } : fpCamera(t);
+    const lights = [];
+    g.imageSmoothingEnabled = false;
+    g.clearRect(0, 0, W, H);
+    drawRoomFP(g, cam);
+
+    // 학생 스프라이트를 먼 순서대로
+    const items = students.map((s, k) => {
+      const wx = COLX[k % 5], wz = ROWZ[(k / 5) | 0];
+      const gone = (cfg.emptySeats || []).includes(s.i) || (demo && s.i === AI_IDX && ph >= 3);
+      return { s, c: toCam([wx, 0, wz], cam), empty: gone };
+    });
+    if (demo && ph >= 3 && ph < 6.8) {
+      // 일어나서 뒷문(오른쪽 뒤)으로 걸어 나감
+      const u = Math.max(0, Math.min(1, (ph - 3.6) / 3.2));
+      const wx = 5.0 + (9.4 - 5.0) * u, wz = 6.6 + (11.7 - 6.6) * u;
+      items.push({ s: students[AI_IDX], c: toCam([wx, 0, wz], cam), standing: true });
+    }
+    const visible = items.filter(o => o.c[2] > 0.4).sort((a, b) => b.c[2] - a.c[2]);
+
+    let target = null;
+    for (const { s, c, empty, standing } of visible) {
+      const local = Object.assign({}, s, { cx: 16, y: 24 });
+      const localLights = [];
+      let spr = sprite, sw = SPR_W, sh = SPR_H, spx = SPX;
+      if (cfg.lpc && !standing) {
+        // 비교용: LPC 의자에 앉은 자세 + 책상
+        spr = lpcSprite; sw = 64; sh = 64; spx = 0.024;
+        drawLpcStudent(s, empty);
+      } else {
+        sg.clearRect(0, 0, SPR_W, SPR_H);
+        if (standing) drawStanding(sg, local, t);
+        else drawStudent(sg, local, t, cfg.level, { lights: localLights, showTell: () => true, empty });
+      }
+      const sc = spx * F / c[2];                       // 스프라이트 1픽셀의 화면 크기
+      const [fx, fy] = proj(c);                        // 바닥 위치
+      const w = sw * sc, h = sh * sc;
+      const left = fx - w / 2, top = fy - h;
+      if (left > W || left + w < 0) continue;
+      g.drawImage(spr, left, top, w, h);
+      for (const L of localLights)
+        lights.push({ x: Math.round(left + (L.x + 0.5) * sc), y: Math.round(top + (L.y + 0.5) * sc), r: Math.max(4, Math.round(L.r * sc * 0.6)), c: L.c, s: L.s });
+      // 화면 가운데 조준점에 걸린 가까운 학생
+      if (demo) {
+        if (s.i === AI_IDX && !standing && !empty && ph < 3) target = { left, top, w, h, z: c[2] };
+      } else if (c[2] < 4.2 && W / 2 > left + w * 0.2 && W / 2 < left + w * 0.8) target = { left, top, w, h, z: c[2] };
+    }
+    drawClipboard(g, t);
+
+    // 소등 이벤트: 방송 → 깜빡임 → 소등
+    const eph = t % 10;
+    let preset = cfg.preset;
+    // 정전: 예고 없이 깜빡이다 꺼지고, 그 뒤에 방송이 나온다
+    if (cfg.eventDemo) preset = eph < 2 ? cfg.preset : eph < 2.6 ? (Math.floor(t * 8) % 2 ? "dark" : cfg.preset) : "dark";
+
+    const src = g.getImageData(0, 0, W, H);
+    applyLight(src, dst, preset, lights, null, "fp");
+    out.putImageData(dst, 0, 0);
+    if (cfg.eventDemo) eventHud(out, t, cam, eph);
+    if (cfg.hud) fpHud(out, t, target, demo ? {
+      caught: ph >= 3 ? 1 : 0,
+      label: ph >= 2 ? "[F] CATCH" : "[E] LOOK",
+      toast: ph >= 3 && ph < 6.8 ? "NO.30107 OUT" : null,
+    } : null);
+  }
+
+  // 방송 이벤트 표시: 스피커 음파, EVENT! 배너, 방송 자막
+  function eventHud(o, t, cam, eph) {
+    if (eph < 3 || eph >= 9) return;
+    const sp = toCam([7.6, 2.52, ROOM_D], cam);
+    if (sp[2] > NEAR) {
+      const [sx, sy] = proj(sp);
+      const ring = Math.floor(t * 6) % 3;
+      o.fillStyle = "#f0b54a";
+      for (let n = 0; n <= ring; n++) {
+        const r = 8 + n * 6;
+        o.fillRect(Math.round(sx - r), Math.round(sy - 3), 2, 6);
+        o.fillRect(Math.round(sx + r), Math.round(sy - 3), 2, 6);
+      }
+    }
+    if (eph < 6 && Math.floor(t * 3) % 3 !== 2) {
+      o.font = "16px Silkscreen"; o.textBaseline = "top";
+      const label = "EVENT!";
+      const lw = Math.ceil(o.measureText(label).width) + 16;
+      o.fillStyle = "#f0b54a"; o.fillRect(W / 2 - lw / 2, 46, lw, 22);
+      o.fillStyle = "#101614"; o.fillText(label, W / 2 - lw / 2 + 8, 49);
+    }
+    if (eph >= 3.4) {
+      const lines = eph < 6.2
+        ? ["갑작스러운 정전입니다.", "수험생 여러분은 동요하지 말고 기다려 주십시오."]
+        : ["정전으로 늦어진 시간만큼", "시험 시간을 연장합니다. 감독관은 자리를 지켜 주십시오."];
+      o.font = '13px "Do Hyeon", "Noto Sans KR", sans-serif'; o.textBaseline = "top";
+      o.fillStyle = "rgba(16,22,20,0.92)"; o.fillRect(10, H - 54, 300, 44);
+      o.fillStyle = "#f0b54a"; o.fillRect(10, H - 54, 3, 44);
+      o.fillStyle = "#f0b54a"; o.fillText("[방송실]", 20, H - 49);
+      o.fillStyle = "#e9e6da";
+      o.fillText(lines[0], 74, H - 49);
+      o.fillText(lines[1], 20, H - 30);
+    }
+  }
+
+  function fpHud(o, t, target, extra) {
+    extra = extra || { caught: 0, label: "[E] LOOK", toast: null };
+    o.font = "8px Silkscreen"; o.textBaseline = "top";
+    // 조준점
+    o.fillStyle = "rgba(233,230,218,0.8)";
+    o.fillRect(W / 2 - 1, H / 2 - 1, 2, 2);
+    if (target) {
+      o.fillStyle = "#f0b54a";
+      const x0 = Math.round(target.left + target.w * 0.12), x1 = Math.round(target.left + target.w * 0.88);
+      const y0 = Math.max(4, Math.round(target.top + target.h * 0.05)), y1 = Math.min(H - 4, Math.round(target.top + target.h * 0.62));
+      const L = 6;
+      o.fillRect(x0, y0, L, 1); o.fillRect(x0, y0, 1, L);
+      o.fillRect(x1 - L, y0, L, 1); o.fillRect(x1, y0, 1, L);
+      o.fillRect(x0, y1, L, 1); o.fillRect(x0, y1 - L, 1, L);
+      o.fillRect(x1 - L, y1, L, 1); o.fillRect(x1, y1 - L, 1, L + 1);
+      const lw = Math.ceil(o.measureText(extra.label).width) + 10;
+      o.fillStyle = "rgba(16,22,20,0.85)"; o.fillRect(W / 2 + 8, H / 2 + 6, lw, 13);
+      o.fillStyle = "#f0b54a"; o.fillText(extra.label, W / 2 + 12, H / 2 + 8);
+    }
+    if (extra.toast) {                                // 조용한 알림 (화면 아래 작은 글씨)
+      const tw = Math.ceil(o.measureText(extra.toast).width) + 12;
+      o.fillStyle = "rgba(16,22,20,0.85)"; o.fillRect(8, H - 22, tw, 14);
+      o.fillStyle = "#e9e6da"; o.fillText(extra.toast, 14, H - 19);
+    }
+    const remain = Math.max(0, 161 - Math.floor(t));
+    const mm = String(Math.floor(remain / 60)).padStart(2, "0"), ss = String(remain % 60).padStart(2, "0");
+    o.fillStyle = "rgba(16,22,20,0.85)"; o.fillRect(6, 6, 70, 14);
+    o.fillStyle = "#e9e6da"; o.fillText(mm + ":" + ss, 10, 9);
+    o.fillStyle = "#f0b54a"; o.fillText("LV" + v_level(o), 52, 9);
+    o.fillStyle = "rgba(16,22,20,0.85)"; o.fillRect(W - 92, 6, 86, 14);
+    o.fillStyle = "#ff5a4f"; o.fillText("!", W - 87, 9);
+    o.fillStyle = "#2b3732"; o.fillRect(W - 78, 10, 66, 6);
+    o.fillStyle = "#f0b54a"; o.fillRect(W - 78, 10, 22, 6);
+    o.fillStyle = "rgba(16,22,20,0.85)"; o.fillRect(6, 24, 70, 14);
+    o.fillStyle = "#e9e6da"; o.fillText("CAUGHT " + extra.caught + "/?", 10, 27);
+  }
+  const v_level = o => o.canvas.dataset.level || "1";
+
+  function renderView(v, t) {
+    if (v.cfg.fp) return renderFP(v, t);
+    const { g, out, dst, cfg } = v;
+    const level = cfg.level;
+    const lights = [];
+    const p = cfg.teacher ? teacherPos(t) : null;
+    const showTell = s => !p || inCone(p, s.cx, s.y - 14);
+    g.clearRect(0, 0, W, H);
+    drawRoom(g);
+    for (const s of students) drawStudent(g, s, t, level, { lights, showTell, empty: (cfg.emptySeats || []).includes(s.i) });
+    if (p) drawTeacher(g, t, p);
+    const src = g.getImageData(0, 0, W, H);
+
+    if (cfg.cctv) { cctvPass(src, dst, t); out.putImageData(dst, 0, 0); cctvHud(out, t); return; }
+    applyLight(src, dst, cfg.preset, lights, p);
+    out.putImageData(dst, 0, 0);
+    if (p && cfg.hud) teacherHud(out, t, p);
+  }
+
+  // ===== 선생님 모드 HUD =====
+  function teacherHud(o, t, p) {
+    // 시야 안에서 가장 가까운 학생 표시
+    let best = null, bd = 1e9;
+    for (const s of students) {
+      if (!inCone(p, s.cx, s.y - 14)) continue;
+      const d = Math.hypot(s.cx - p.tx, s.y - p.ty);
+      if (d < bd) { bd = d; best = s; }
+    }
+    if (best) {
+      o.fillStyle = "#f0b54a";
+      const x0 = best.cx - 12, y0 = best.y - 24, x1 = best.cx + 12, y1 = best.y + 15;
+      for (const [x, y, dx, dy] of [[x0, y0, 1, 1], [x1, y0, -1, 1], [x0, y1, 1, -1], [x1, y1, -1, -1]]) {
+        o.fillRect(dx > 0 ? x : x - 3, y, 4, 1); o.fillRect(x, dy > 0 ? y : y - 3, 1, 4);
+      }
+      o.fillStyle = "#101614"; o.fillRect(best.cx - 5, y0 - 12, 11, 10);
+      o.strokeStyle = "#f0b54a"; o.lineWidth = 1; o.strokeRect(best.cx - 4.5, y0 - 11.5, 10, 9);
+      o.fillStyle = "#f0b54a"; o.font = "8px Silkscreen"; o.textBaseline = "top";
+      o.fillText("E", best.cx - 2, y0 - 11);
+    }
+    // 타이머 + 단계
+    const remain = Math.max(0, 180 - Math.floor(t) - 19);
+    const mm = String(Math.floor(remain / 60)).padStart(2, "0"), ss = String(remain % 60).padStart(2, "0");
+    o.fillStyle = "rgba(16,22,20,0.85)"; o.fillRect(6, 52, 70, 14);
+    o.fillStyle = "#e9e6da"; o.font = "8px Silkscreen"; o.textBaseline = "top";
+    o.fillText(mm + ":" + ss, 10, 55);
+    o.fillStyle = "#f0b54a"; o.fillText("LV3", 52, 55);
+    // 민원 게이지
+    o.fillStyle = "rgba(16,22,20,0.85)"; o.fillRect(W - 92, 52, 86, 14);
+    o.fillStyle = "#ff5a4f"; o.fillText("!", W - 87, 55);
+    o.fillStyle = "#2b3732"; o.fillRect(W - 78, 56, 66, 6);
+    o.fillStyle = "#f0b54a"; o.fillRect(W - 78, 56, 22, 6);
+    // 적발 수
+    o.fillStyle = "rgba(16,22,20,0.85)"; o.fillRect(6, 70, 70, 14);
+    o.fillStyle = "#e9e6da"; o.fillText("CAUGHT 0/3", 10, 73);
+  }
+
+  // ===== CCTV: 같은 장면 + 초록 램프 LUT + 저해상도 + 노이즈 =====
+  const GREEN = [[6, 16, 10], [16, 52, 30], [40, 98, 58], [92, 158, 102], [178, 226, 170]];
+  function cctvPass(src, dst, t) {
+    const s = src.data, d = dst.data;
+    const nr = rng(Math.floor(t * 8));
+    for (let y = 0; y < H; y += 2) for (let x = 0; x < W; x += 2) {
+      let lum = 0;
+      for (let yy = 0; yy < 2; yy++) for (let xx = 0; xx < 2; xx++) {
+        const o = ((y + yy) * W + x + xx) * 4;
+        lum += s[o] * 0.3 + s[o + 1] * 0.59 + s[o + 2] * 0.11;
+      }
+      lum /= 4 * 255;
+      const vx = (x - W / 2) / (W / 2), vy = (y - H / 2) / (H / 2);
+      lum *= 1 - 0.35 * (vx * vx + vy * vy);           // 비네팅
+      lum += (nr() - 0.5) * 0.12;                      // 노이즈
+      const idx = Math.max(0, Math.min(4, Math.round(lum * 4.6)));
+      const c = GREEN[idx];
+      for (let yy = 0; yy < 2; yy++) for (let xx = 0; xx < 2; xx++) {
+        const o = ((y + yy) * W + x + xx) * 4;
+        const scan = yy === 1 ? 0.78 : 1;             // 주사선
+        d[o] = c[0] * scan; d[o + 1] = c[1] * scan; d[o + 2] = c[2] * scan; d[o + 3] = 255;
+      }
+    }
+  }
+  function cctvHud(o, t) {
+    o.font = "8px Silkscreen"; o.textBaseline = "top";
+    o.fillStyle = "#cfeec8"; o.fillText("CAM-02  REAR", 8, 6);
+    const sec = 7 + Math.floor(t);
+    const ts = "2026-11-19 09:41:" + String(sec % 60).padStart(2, "0");
+    o.fillText(ts, W - 8 - o.measureText(ts).width, 6);
+    if (Math.floor(t * 2) % 2 === 0) { o.fillStyle = "#ff5a4f"; o.fillRect(8, H - 15, 6, 6); }
+    o.fillStyle = "#cfeec8"; o.fillText("REC", 18, H - 16);
+    o.fillText("1 2 [3] 4", W - 8 - o.measureText("1 2 [3] 4").width, H - 16);
+  }
+
+  // ===== 관찰 패널 (64×64 얼굴) =====
+  function drawFace(g, t, kind, noBg, style) {
+    g.clearRect(0, 0, 64, 64);
+    if (!noBg) px(g, 0, 0, 64, 64, "#2b3240");
+    px(g, 0, 50, 64, 14, "#2f3e63");                   // 교복
+    px(g, 28, 50, 8, 14, "#e4e4ea"); px(g, 31, 52, 2, 12, "#3a4a7a");
+    px(g, 13, 10, 38, 22, "#2b2320");                  // 머리카락
+    px(g, 16, 14, 32, 36, "#f1c9a5");                  // 얼굴
+    px(g, 16, 12, 32, 8, "#2b2320");
+    px(g, 13, 26, 3, 9, "#e0b48e"); px(g, 48, 26, 3, 9, "#e0b48e");   // 귀
+    const blink = Math.floor(t * 1.3) % 6 === 0;
+    for (const ex of [21, 36]) {                      // 눈
+      if (blink) px(g, ex, 30, 7, 1, "#1a1414");
+      else { px(g, ex, 28, 7, 4, "#f7f4ee"); px(g, ex + 2, 28, 3, 4, "#2a1d16"); }
+    }
+    px(g, 27, 42, 10, 2, "#b5655a");                   // 입
+    px(g, 31, 34, 2, 5, "#e0b48e");                    // 코
+    if (kind === "none") return;
+    if ((kind === "normal" || kind === "smart") && style) {
+      drawFaceGlasses(g, style);
+    } else if (kind === "normal" || kind === "smart" || kind === "thin") {
+      const fc = kind === "thin" ? "#1e1e1e" : "#9aa0a8";
+      g.strokeStyle = fc; g.lineWidth = 1;
+      g.strokeRect(19.5, 25.5, 11, 8); g.strokeRect(34.5, 25.5, 11, 8);
+      px(g, 31, 28, 3, 1, fc);
+      px(g, 14, 28, 6, 1, fc); px(g, 46, 28, 4, 1, fc);
+      if (kind === "thin") { px(g, 46, 27, 5, 3, "#1e1e1e"); px(g, 47, 25, 3, 2, "#3a3a3a"); } // 경첩 + LED 가린 테이프
+    } else {
+      px(g, 18, 24, 14, 2, "#141414"); px(g, 33, 24, 14, 2, "#141414");
+      px(g, 18, 33, 14, 2, "#141414"); px(g, 33, 33, 14, 2, "#141414");
+      px(g, 18, 24, 2, 11, "#141414"); px(g, 30, 24, 2, 11, "#141414");
+      px(g, 33, 24, 2, 11, "#141414"); px(g, 45, 24, 2, 11, "#141414");
+      px(g, 32, 27, 1, 2, "#141414");
+      px(g, 10, 27, 8, 3, "#141414"); px(g, 47, 27, 6, 3, "#141414");  // 두꺼운 안경다리
+      px(g, 46, 22, 5, 5, "#141414"); px(g, 47, 23, 3, 3, "#1d3557"); px(g, 48, 23, 1, 1, "#9ad"); // 카메라
+      if (kind === "ai") {
+        if (Math.floor(t * 3) % 2 === 0) {
+          px(g, 52, 23, 2, 2, "#ff3b30");
+          g.fillStyle = "rgba(255,70,50,0.35)"; g.fillRect(50, 21, 6, 6);
+        } else px(g, 52, 23, 2, 2, "#5a1a16");
+      } else {
+        px(g, 51, 22, 4, 4, "#3a3a3a");                // LED 가린 테이프
+      }
+    }
+  }
+  // 열 감지 램프 LUT
+  const THERMAL = [[10, 10, 40], [40, 20, 110], [120, 30, 140], [210, 50, 70], [250, 140, 30], [255, 240, 140]];
+  function thermalPass(g, t) {
+    const img = g.getImageData(0, 0, 64, 64), d = img.data;
+    for (let y = 0; y < 64; y++) for (let x = 0; x < 64; x++) {
+      const o = (y * 64 + x) * 4;
+      const isSkin = d[o] > 200 && d[o + 1] > 150 && d[o + 2] > 120 && d[o] > d[o + 2];
+      let h = isSkin ? 0.55 : (d[o] + d[o + 1] + d[o + 2]) / 765 * 0.35;
+      if (y > 50) h = 0.28;
+      const hd = Math.hypot(x - 49, y - 26);           // 안경다리 발열
+      h += Math.max(0, 1 - hd / 11) * (0.55 + 0.08 * Math.sin(t * 3));
+      const i = Math.max(0, Math.min(5, Math.round(h * 5)));
+      const c = THERMAL[i];
+      d[o] = c[0]; d[o + 1] = c[1]; d[o + 2] = c[2]; d[o + 3] = 255;
+    }
+    g.putImageData(img, 0, 0);
+    g.font = "8px Silkscreen"; g.textBaseline = "top"; g.fillStyle = "#fff";
+    g.fillText("41.3C", 3, 2);
+  }
+
+  // ===== 입실 검사 화면 =====
+  // 4초마다 다음 학생: 일반 금속테(무고) → 일반 안경처럼 생긴 AI 안경 → 눈에 띄는 AI 안경 + 스마트워치
+  const GATE_CASES = [
+    { glasses: "normal", watch: "analog", extra: null,   metal: 6, verdict: "PASS",  hair: "#2b2320", no: "30117" },
+    { glasses: "smart",  watch: "analog", extra: null,   metal: 7, verdict: "CHECK", hair: "#5a3a28", no: "30118" },
+    { glasses: "ai",     watch: "smart",  extra: "buds", metal: 9, verdict: "HOLD",  hair: "#1c1c24", no: "30119" },
+  ];
+  const portrait = document.createElement("canvas");
+  portrait.width = 64; portrait.height = 64;
+  const pg = portrait.getContext("2d");
+
+  function trayGlasses(g, x, y, kind) {
+    const c = kind === "ai" ? "#141414" : "#8a8f96";
+    const t = kind === "ai" ? 3 : 1;
+    for (const ox of [0, 26]) {
+      px(g, x + ox, y, 22, t, c); px(g, x + ox, y + 14 - t, 22, t, c);
+      px(g, x + ox, y, t, 14, c); px(g, x + ox + 22 - t, y, t, 14, c);
+      px(g, x + ox + 3, y + 3, 5, 2, "rgba(255,255,255,0.35)");
+    }
+    px(g, x + 22, y + 4, 4, 2, c);
+    // 접힌 안경다리
+    px(g, x + 2, y + 15, 44, kind === "ai" ? 3 : 1, c);
+    if (kind === "smart") px(g, x + 40, y + 14, 5, 2, "#8a8f96");      // 살짝 두꺼운 경첩
+    if (kind === "ai") { px(g, x + 44, y - 2, 5, 5, "#141414"); px(g, x + 45, y - 1, 3, 3, "#1d3557"); }
+  }
+  function trayWatch(g, x, y, kind) {
+    px(g, x + 4, y - 6, 8, 30, "#4a3a2c");              // 줄
+    if (kind === "smart") {
+      px(g, x, y, 16, 16, "#111"); px(g, x + 2, y + 2, 12, 12, "#1f6f8b");
+      px(g, x + 4, y + 5, 8, 2, "#bfe9f5"); px(g, x + 4, y + 9, 5, 2, "#bfe9f5");
+    } else {
+      px(g, x, y, 16, 16, "#c9b48a"); px(g, x + 2, y + 2, 12, 12, "#f4f2ea");
+      px(g, x + 7, y + 4, 2, 5, "#222"); px(g, x + 8, y + 8, 4, 1, "#222");
+    }
+  }
+  function drawGate(o, t) {
+    const idx = Math.floor(t / 4) % GATE_CASES.length;
+    const k = GATE_CASES[idx];
+    const local = t % 4;
+    o.imageSmoothingEnabled = false;
+    // 벽과 문
+    px(o, 0, 0, W, 118, "#c3bdab");
+    px(o, 14, 8, 96, 110, "#6b4d33"); px(o, 20, 14, 84, 104, "#2e3138");
+    for (let n = 0; n < 3; n++) {                        // 복도에 줄 선 학생들
+      const qx = 34 + n * 22, qy = 58 + n * 4;
+      px(o, qx, qy, 12, 12, "#46403a"); px(o, qx - 3, qy + 12, 18, 40, "#3b4660");
+    }
+    px(o, 116, 10, 50, 14, "#2b3732"); o.font = "8px Silkscreen"; o.textBaseline = "top";
+    o.fillStyle = "#f0b54a"; o.fillText("IN 08:10", 121, 13);
+    // 현재 학생 (안경은 벗어서 바구니에)
+    pg.imageSmoothingEnabled = false;
+    drawFace(pg, t, "none", true);
+    pg.fillStyle = k.hair; pg.fillRect(13, 10, 38, 10); pg.fillRect(16, 12, 32, 8);
+    o.drawImage(portrait, 150, -6, 128, 128);
+    // 책상
+    px(o, 0, 118, W, 152, "#8a6644"); px(o, 0, 118, W, 4, "#a57c52");
+    // 수험표
+    px(o, 14, 132, 112, 74, "#f4f2ea"); px(o, 14, 132, 112, 12, "#3a4a7a");
+    o.fillStyle = "#f4f2ea"; o.fillText("2027 CSAT", 20, 134);
+    o.drawImage(portrait, 20, 150, 30, 30);
+    o.fillStyle = "#333"; o.fillText("No." + k.no, 56, 152);
+    px(o, 56, 166, 60, 2, "#aab"); px(o, 56, 174, 48, 2, "#aab"); px(o, 20, 188, 96, 2, "#aab");
+    // 바구니
+    px(o, 140, 138, 196, 118, "#3e4852"); px(o, 146, 144, 184, 106, "#56626e");
+    trayGlasses(o, 160, 160, k.glasses);
+    trayWatch(o, 236, 158, k.watch);
+    px(o, 268, 160, 50, 14, "#c0504d"); px(o, 268, 160, 50, 3, "#d97a6f"); // 필통
+    px(o, 160, 206, 28, 6, "#e8d27a"); px(o, 186, 206, 4, 6, "#333");      // 연필
+    if (k.extra === "buds") { px(o, 220, 206, 22, 16, "#f2f2f2"); px(o, 220, 213, 22, 1, "#bbb"); }
+    // 도구 패널
+    px(o, 344, 126, 130, 138, "#18211e");
+    // 확대경: 경첩 6배
+    const mx = 409, my = 180, r = 40;
+    o.save(); o.beginPath(); o.arc(mx, my, r, 0, Math.PI * 2); o.clip();
+    px(o, mx - r, my - r, r * 2, r * 2, "#9aa0a8");
+    const fc = k.glasses === "ai" ? "#141414" : "#8a8f96";
+    px(o, mx - r, my - 6, r + 6, k.glasses === "ai" ? 16 : 10, fc);          // 안경다리
+    px(o, mx + 2, my - 14, 20, 26, fc);                                     // 경첩
+    px(o, mx + 8, my - 2, 6, 6, "#5a5f66");                                  // 나사
+    if (k.glasses === "smart") {
+      px(o, mx + 6, my - 12, 6, 6, "#0d0d0d");                               // 카메라 구멍
+      if (Math.floor(t * 3) % 2) px(o, mx + 7, my - 11, 2, 2, "#9ad");
+    }
+    if (k.glasses === "ai") {
+      px(o, mx + 4, my - 12, 12, 12, "#0d0d0d"); px(o, mx + 6, my - 10, 8, 8, "#1d3557"); px(o, mx + 7, my - 9, 3, 3, "#9ad");
+      px(o, mx + 18, my - 12, 3, 3, "#ff3b30");
+    }
+    o.restore();
+    o.strokeStyle = "#e9e6da"; o.lineWidth = 2; o.beginPath(); o.arc(mx, my, r, 0, Math.PI * 2); o.stroke();
+    o.fillStyle = "#e9e6da"; o.fillText("x6", 352, 132);
+    // 금속 탐지 막대
+    o.fillText("METAL", 352, 228);
+    const lvl = k.metal + (Math.floor(t * 6) % 2);
+    for (let n = 0; n < 10; n++)
+      px(o, 352 + n * 11, 240, 9, 14, n < lvl ? (n >= 8 ? "#ff5a4f" : n >= 5 ? "#f0b54a" : "#7fd18c") : "#2b3732");
+    // 상단 정보 + 판단 버튼
+    px(o, 300, 8, 174, 104, "rgba(16,22,20,0.9)");
+    o.fillStyle = "#e9e6da"; o.fillText("08:0" + (4 + idx) + "  QUEUE " + (7 + idx) + "/20", 308, 14);
+    const btns = [["PASS", "#7fd18c"], ["HOLD", "#ff5a4f"], ["CHECK", "#f0b54a"]];
+    btns.forEach(([label, col], n) => {
+      const by = 32 + n * 26, sel = local > 2.6 && label === k.verdict;
+      px(o, 308, by, 158, 20, sel ? col : "#2b3732");
+      o.fillStyle = sel ? "#101614" : col; o.fillText(label, 316, by + 6);
+    });
+  }
+
+  // ===== 시작 화면 =====
+  const EXAMS = [
+    { lv: "10회차", name: "새솔고 3실", open: true },
+    { lv: "11회차", name: "한빛고 12실", open: true },
+    { lv: "12회차", name: "한빛고 7실", open: true },
+    { lv: "13회차", name: "다음 감독", open: false },
+  ];
+  const KR = size => size + 'px "Do Hyeon", "Noto Sans KR", sans-serif';
+  function drawTitle(o, t) {
+    o.textBaseline = "top";
+    // 아침 하늘 (계단식 띠)
+    ["#2b3a5c", "#3d5278", "#5d7299", "#8e93a8", "#c9a27a"].forEach((c, n) => px(o, 0, n * 40, W, 40, c));
+    // 학교 건물
+    px(o, 50, 80, 380, 120, "#c9c1ad"); px(o, 50, 80, 380, 6, "#a59d8a");
+    px(o, 210, 52, 60, 34, "#c9c1ad"); px(o, 226, 58, 28, 22, "#f2efe6");      // 시계탑
+    px(o, 239, 61, 2, 10, "#222"); px(o, 239, 69, 7, 2, "#222");
+    for (let r = 0; r < 3; r++) for (let c = 0; c < 10; c++) {
+      if (c === 4 || c === 5) continue;
+      px(o, 64 + c * 36, 96 + r * 32, 24, 18, (r + c) % 4 ? "#8fbfd4" : "#e8d27a");
+    }
+    px(o, 196, 150, 88, 50, "#5a4636"); px(o, 200, 154, 80, 46, "#2e3138");   // 현관
+    // 현수막
+    px(o, 150, 128, 180, 16, "#f4f2ea"); px(o, 150, 128, 180, 2, "#c0504d");
+    o.font = KR(12); o.fillStyle = "#3a2a20"; o.fillText("2027학년도 수능 제15시험지구", 166, 130);
+    // 바닥과 정문
+    px(o, 0, 200, W, 70, "#6e6a62"); px(o, 0, 200, W, 3, "#8a857b");
+    px(o, 40, 168, 14, 40, "#8a8478"); px(o, 426, 168, 14, 40, "#8a8478");
+    // 걸어 들어가는 학생들
+    for (let n = 0; n < 5; n++) {
+      const x = ((t * 14 + n * 96) % 520) - 30, y = 210 + (n % 2) * 6;
+      const step = Math.floor(t * 5 + n) % 2;
+      px(o, x, y, 8, 8, n % 2 ? "#2b2320" : "#3d2b22");
+      px(o, x - 2, y + 8, 12, 12, n % 3 ? "#2f3e63" : "#e4e4ea");
+      px(o, x, y + 20, 3, 6 + step, "#23262e"); px(o, x + 5, y + 20, 3, 7 - step, "#23262e");
+    }
+    // 제목
+    o.font = KR(40);
+    o.fillStyle = "#101614"; o.fillText("AI 안경 감독관", 22, 14);
+    o.fillStyle = "#f4f2ea"; o.fillText("AI 안경 감독관", 20, 12);
+    o.font = "8px Silkscreen"; o.fillStyle = "#f0b54a"; o.fillText("PROCTOR  :  AI  GLASSES", 22, 56);
+    // 하단 메뉴 패널
+    px(o, 10, 222, 460, 42, "rgba(16,22,20,0.92)");
+    const sel = 2;
+    EXAMS.forEach((e, n) => {
+      const x = 16 + n * 76, active = e.open && n === sel;
+      px(o, x, 227, 70, 32, active ? "#f0b54a" : e.open ? "#2b3732" : "#1a2220");
+      o.font = "8px Silkscreen"; o.fillStyle = active ? "#101614" : e.open ? "#f0b54a" : "#4a5a52";
+      o.fillText(e.lv, x + 5, 231);
+      o.font = KR(12); o.fillStyle = active ? "#101614" : e.open ? "#e9e6da" : "#4a5a52";
+      o.fillText(e.open ? e.name : "잠김", x + 5, 242);
+      if (!e.open) { px(o, x + 54, 238, 10, 8, "#4a5a52"); px(o, x + 56, 233, 6, 6, "#4a5a52"); px(o, x + 58, 235, 2, 4, "#1a2220"); }
+    });
+    // 모드 선택 + 시작 버튼
+    o.font = KR(12);
+    px(o, 324, 227, 66, 14, "#f0b54a"); o.fillStyle = "#101614"; o.fillText("1인칭", 342, 228);
+    px(o, 324, 244, 66, 14, "#2b3732"); o.fillStyle = "#7fd18c"; o.fillText("CCTV", 342, 245);
+    const blink = Math.floor(t * 2) % 2;
+    px(o, 396, 227, 68, 32, blink ? "#e9e6da" : "#c9c6ba");
+    o.font = KR(14); o.fillStyle = "#101614"; o.fillText("시험 시작", 405, 236);
+  }
+
+  // ===== 결과 화면 =====
+  const RESULT = { caught: [7, 11], missed: [16], wrong: [2] };
+  function drawResult(o, t) {
+    o.textBaseline = "top";
+    px(o, 0, 0, W, H, "#2b3732");
+    px(o, 10, 8, 460, 254, "#ece8dc");                                         // 보고서 종이
+    px(o, 10, 8, 460, 24, "#3a4a7a");
+    o.font = KR(15); o.fillStyle = "#f4f2ea"; o.fillText("감독 결과 보고서", 20, 12);
+    o.font = KR(12); o.fillStyle = "#cfd6e6"; o.fillText("12번째 감독 · 한빛고 제7시험실", 300, 14);
+    // 자리 배치도
+    o.font = KR(12); o.fillStyle = "#3a2a20"; o.fillText("자리 배치도", 22, 40);
+    px(o, 22, 56, 196, 8, "#3a2a20"); o.font = "8px Silkscreen"; o.fillStyle = "#ece8dc"; o.fillText("FRONT", 104, 56);
+    for (let n = 0; n < 20; n++) {
+      const c = n % 5, r = (n / 5) | 0, x = 22 + c * 40, y = 70 + r * 33;
+      let col = "#d6d1c3", tc = "#7d776b";
+      if (RESULT.caught.includes(n)) { col = "#f0b54a"; tc = "#3a2a20"; }
+      if (RESULT.missed.includes(n)) { col = Math.floor(t * 3) % 2 ? "#ff5a4f" : "#d9443a"; tc = "#fff"; }
+      px(o, x, y, 34, 26, col);
+      if (RESULT.wrong.includes(n)) {
+        px(o, x, y, 34, 26, "#b9b4a8");
+        for (let k = -26; k < 34; k += 6) for (let d = 0; d < 26; d++) { const xx = k + d; if (xx >= 0 && xx < 34) px(o, x + xx, y + d, 1, 1, "#8d887d"); }
+        tc = "#3a2a20";
+      }
+      o.font = "8px Silkscreen"; o.fillStyle = tc; o.fillText(String(n + 1).padStart(2, "0"), x + 3, y + 3);
+    }
+    // 통계
+    const sx = 236;
+    o.font = KR(13);
+    [["적발", "2명"], ["놓침", "1명"], ["오인", "1명"], ["남은 시간", "00:00"], ["보너스", "없음"]].forEach(([k, v], n) => {
+      o.fillStyle = "#3a2a20";
+      o.fillText(k, sx, 42 + n * 18); o.fillText(v, sx + 74, 42 + n * 18);
+      px(o, sx, 57 + n * 18, 120, 1, "#cfc9b9");
+    });
+    // 등급 도장
+    if (t % 6 > 1) {
+      o.save(); o.translate(410, 74); o.rotate(-0.18);
+      o.strokeStyle = "#c0392b"; o.lineWidth = 3; o.beginPath(); o.arc(0, 0, 30, 0, Math.PI * 2); o.stroke();
+      o.font = KR(36); o.fillStyle = "#c0392b"; o.fillText("B", -10, -19);
+      o.restore();
+    }
+    // 놓친 학생 공개
+    px(o, sx, 138, 226, 46, "#f7e3df"); px(o, sx, 138, 3, 46, "#d9443a");
+    o.font = KR(12); o.fillStyle = "#9c2d23"; o.fillText("놓친 학생 · 17번 자리", sx + 10, 142);
+    o.fillStyle = "#3a2a20"; o.fillText("옆자리 답안을 훔쳐봤습니다.", sx + 10, 158);
+    o.font = KR(11); o.fillStyle = "#7d776b"; o.fillText("가장 오래되고 흔한 수법입니다.", sx + 10, 172);
+    // 오인 적발
+    px(o, sx, 188, 226, 30, "#e2ded3"); px(o, sx, 188, 3, 30, "#8d887d");
+    o.font = KR(12); o.fillStyle = "#3a2a20"; o.fillText("오인 · 3번 자리: 안경 고쳐 쓰는 습관", sx + 10, 192);
+    o.font = KR(11); o.fillStyle = "#7d776b"; o.fillText("민원 +1", sx + 10, 205);
+    // 처분
+    o.font = KR(11); o.fillStyle = "#7d776b"; o.fillText("적발자 처분: 해당 시험 무효 처리", 22, 203);
+    // 감독관 수첩 메모
+    if (Math.floor(t * 2) % 2) { px(o, 22, 220, 36, 14, "#f0b54a"); o.font = "8px Silkscreen"; o.fillStyle = "#101614"; o.fillText("NEW", 28, 223); }
+    o.font = KR(12); o.fillStyle = "#3a2a20"; o.fillText("수첩에 메모함 · 옆자리 훔쳐보기", 64, 221);
+    // 버튼
+    px(o, 236, 230, 108, 24, "#3a4a7a"); o.font = KR(13); o.fillStyle = "#f4f2ea"; o.fillText("다음 시험 ▶", 256, 235);
+    px(o, 352, 230, 108, 24, "#cfc9b9"); o.fillStyle = "#3a2a20"; o.fillText("다시 하기", 378, 235);
+  }
+
+  // 감독관 수첩: 빈 쪽 채우기 (30쪽 중 3쪽만 기록됨)
+  (() => {
+    const dex = document.getElementById("dex"); // 감독관 수첩
+    const open = [1, 2, 4];
+    for (let n = 1; n <= 30; n++) {
+      if (open.includes(n)) continue;
+      const li = document.createElement("li");
+      li.className = "locked";
+      li.innerHTML = '<span class="lv">' + String(n).padStart(2, "0") + ' · ???</span><b>???</b><span>빈 쪽</span>';
+      dex.appendChild(li);
+    }
+  })();
+
+  // ===== 시작 =====
+  function start() {
+    const views = [
+      makeView(document.getElementById("teacher"),  { fp: true, hud: true, preset: "dim", level: 1, emptySeats: [11] }),
+      makeView(document.getElementById("cmpMock"),  { fp: true, preset: "overcast", level: 1, fixedCam: true }),
+      makeView(document.getElementById("cmpLpc"),   { fp: true, preset: "overcast", level: 1, fixedCam: true, lpc: true }),
+      makeView(document.getElementById("catch"),    { fp: true, hud: true, preset: "overcast", level: 1, catchDemo: true }),
+      makeView(document.getElementById("teacher2"), { fp: true, hud: true, preset: "overcast", level: 1, emptySeats: [11] }),
+      makeView(document.getElementById("cctv"),     { cctv: true, level: 1, emptySeats: [11] }),
+      makeView(document.getElementById("lv1"),      { fp: true, preset: "dim", level: 1 }),
+      makeView(document.getElementById("lv2"),      { fp: true, preset: "overcast", level: 2 }),
+      makeView(document.getElementById("lv3"),      { fp: true, preset: "day", level: 3 }),
+      makeView(document.getElementById("lv4"),      { fp: true, preset: "overcast", level: 4 }),
+      makeView(document.getElementById("event"),    { fp: true, hud: true, preset: "overcast", level: 1, eventDemo: true }),
+    ];
+    const faces = ["face1", "face2", "face3", "face4"].map(id => document.getElementById(id).getContext("2d"));
+    const gate = document.getElementById("gate").getContext("2d");
+    const titleCtx = document.getElementById("title").getContext("2d");
+    const stripCtx = document.getElementById("glassesRow").getContext("2d");
+    const aiCtx = document.getElementById("aiRow").getContext("2d");
+    const stripFace = document.createElement("canvas");
+    stripFace.width = 64; stripFace.height = 64;
+    const stripG = stripFace.getContext("2d");
+    const resultCtx = document.getElementById("result").getContext("2d");
+    const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+    function frame(t) {
+      for (const v of views) renderView(v, t);
+      drawFace(faces[0], t, "normal", false, GSTYLES[0]);
+      drawFace(faces[1], t, "ai");
+      drawFace(faces[2], t, "thin"); thermalPass(faces[2], t);
+      drawFace(faces[3], t, "smart", false, GSTYLES[4]);   // 3세대: 갈색 뿔테 일반 안경과 똑같음
+      // 일반 안경 디자인 모음
+      GSTYLES.forEach((st, n) => {
+        drawFace(stripG, t + n * 0.7, "normal", false, st);
+        stripCtx.drawImage(stripFace, n * 64, 0);
+      });
+      // AI 안경 디자인 모음
+      AI_DESIGNS.forEach((d, n) => {
+        drawFace(stripG, t + n * 0.9, "normal", false, d.style);
+        const pc = d.style.color === "#d9d3c7" ? "#8a8478" : d.style.color;
+        drawAiParts(stripG, t + n * 0.4, d.gen, pc);
+        aiCtx.drawImage(stripFace, n * 64, 0);
+      });
+      drawGate(gate, t);
+      drawTitle(titleCtx, t);
+      drawResult(resultCtx, t);
+      const st = catchStep(t);
+      if (st !== lastStep) {
+        lastStep = st;
+        stepEls.forEach((li, n) => li.classList.toggle("active", n === st));
+      }
+    }
+    const stepEls = Array.from(document.querySelectorAll("#steps li"));
+    let lastStep = -1;
+    if (reduce) { frame(2.6); return; }
+    const t0 = performance.now() - 2600;
+    let last = -1;
+    function loop(now) {
+      const t = (now - t0) / 1000;
+      const step = Math.floor(t * 8);                  // 8fps 픽셀 애니메이션
+      if (step !== last) { last = step; frame(step / 8); }
+      requestAnimationFrame(loop);
+    }
+    requestAnimationFrame(loop);
+  }
+
+  const fontReady = document.fonts && document.fonts.load
+    ? Promise.all([document.fonts.load("8px Silkscreen"), document.fonts.load('13px "Do Hyeon"', "방송실")])
+    : Promise.resolve();
+  Promise.race([fontReady, new Promise(r => setTimeout(r, 1500))]).then(start, start);
+})();
+</script>

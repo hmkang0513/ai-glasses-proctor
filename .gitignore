@@ -1,0 +1,7 @@
+node_modules/
+dist/
+*.log
+.DS_Store
+
+# 플레이 테스트 스크린샷은 로컬에만 (저장소가 무거워짐)
+docs/**/*.png
