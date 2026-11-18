@@ -37,7 +37,7 @@ function tutorialFor(level: number): string[] {
     "수석감독관 메모 · 첫 감독",
     "WASD로 걷고, 마우스로 고개를 돌립니다. 화면을 클릭하면 마우스가 고정됩니다.",
     "수상한 학생을 화면 가운데 두고 E로 관찰하세요(4m 안). 관찰한 학생만 F로 적발할 수 있습니다.",
-    "바로 옆까지 가면 학생이 눈치채고 멈춥니다. 두세 걸음 떨어져서 지켜보세요.",
+    "왼쪽 위에 남은 부정행위자 수가 나옵니다. 못 찾겠으면 부감독이 헛기침으로 알려 줍니다.",
     "올해부터 AI 안경 반입 금지. 두꺼운 안경다리와 빨간 불빛을 잘 보세요.",
     "무고한 학생을 잡으면 민원이 들어옵니다. 확실할 때만 잡으세요.",
   ];
@@ -55,6 +55,7 @@ function tutorialFor(level: number): string[] {
   ];
   if (level === 4) return [
     "수석감독관 메모 · 네 번째 감독",
+    "이제 학생들이 눈치를 챕니다. 바로 옆까지 가면 멈추니 두세 걸음 떨어져서 지켜보세요.",
     "오늘부터 1교시 전 12초 동안 시계를 확인합니다. 학생들이 시계를 책상 위에 올려 둡니다.",
     "스마트워치는 관찰(E) 뒤 F로 보관합니다. 아날로그 시계를 가져가면 민원이 들어옵니다.",
     "이번 감독부터는 1교시 뒤 2교시도 있습니다.",
@@ -228,10 +229,11 @@ export function buildRoom(level: number, seed = level * 7919 + 13, alumnus: Alum
   for (const s of students) if (s.cheat?.id === "proxy") s.photoMismatch = true;
 
   // --- 무고한 습관 프로필 (고정) + 미끼 ---
-  const decoyN = Math.min(9, 2 + Math.floor(level / 6));
+  const decoyN = level <= 2 ? 0 : level <= 5 ? 1 : Math.min(9, 2 + Math.floor(level / 6));   // 초반은 미끼를 거의 두지 않음
   const innocents = shuffle(r, students.filter((s) => !s.cheat));
   innocents.forEach((s, n) => {
-    const opts: Pose[] = ["think", "stretch", "drink", "cough", "lookaround", "ear", "clothes", "neck"];
+    const opts: Pose[] = ["think", "stretch", "drink", "cough", "ear", "clothes", "neck"];
+    if (level > 2) opts.push("lookaround");   // 1~2회차는 AI 안경과 헷갈리는 두리번거림 없음
     if (s.glasses) opts.push("nosepush", "glassesoff");
     if (s.watch !== "none") opts.push("wrist");
     const habits: Pose[] = [pick(r, opts)];
@@ -247,9 +249,9 @@ export function buildRoom(level: number, seed = level * 7919 + 13, alumnus: Alum
     s.habits = habits;
   });
   for (const s of students) if (s.cheat) s.habits = [pick(r, ["think", "stretch", "drink"] as Pose[])];
-  for (const s of students) if (!s.cheat && r() < 0.1) s.habits.push("glance");   // 평범한 학생은 가끔만
+  for (const s of students) if (!s.cheat && level > 2 && r() < 0.1) s.habits.push("glance");   // 평범한 학생은 가끔만
   // 소심한 무고 학생 1~3명 (눈이 마주치면 움찔 → 움찔만으로는 범인을 확정할 수 없게)
-  for (const s of shuffle(r, students.filter((x) => !x.cheat)).slice(0, Math.max(1, Math.min(4, students.filter((x) => x.cheat).length)))) { s.timid = true; if (!s.habits.includes("glance")) s.habits.push("glance"); }
+  if (level > 2) for (const s of shuffle(r, students.filter((x) => !x.cheat)).slice(0, Math.max(1, Math.min(4, students.filter((x) => x.cheat).length)))) { s.timid = true; if (!s.habits.includes("glance")) s.habits.push("glance"); }
   // 2회차 미끼: 검은 뿔테 학생은 안경을 자주 고쳐 씀
   if (level === 2) {
     const d = students.find((s) => !s.cheat && s.glasses === GSTYLES[3]);

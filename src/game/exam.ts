@@ -112,7 +112,8 @@ export class ExamScene {
     if (s.period === 0 && s.room.level >= 4) this.pre = 12;
     if (this.pre > 0) this.mode = "fp";   // 시계 확인은 교실을 돌며 직접
     // 부감독 헛기침 힌트: 교시당 1번, 정확도 약 70%, 50회차부터 없음
-    if ((s.room.level >= 3 && s.room.level < 50) || s.room.bribedAide) this.aideHintAt = 45 + r() * 80;
+    if (s.room.level <= 5) this.aideHintAt = 40 + r() * 20;   // 초반: 일찍, 정확하게, 반복
+    else if (s.room.level < 50 || s.room.bribedAide) this.aideHintAt = 45 + r() * 80;
   }
 
   // ===== 이벤트: 창밖 쪽지(15회차~), 일찍 퇴실(44회차~) =====
@@ -260,13 +261,15 @@ export class ExamScene {
       this.aideHintAt = -1;
       const seated = this.students.filter((x) => x.status === "seated");
       const cheaters = seated.filter((x) => isCheating(x));
-      const honest = !this.s.room.bribedAide && this.s.r() < 0.7;   // 매수된 부감독은 일부러 엉뚱한 학생을 가리킴
+      const early = this.s.room.level <= 5;
+      const honest = !this.s.room.bribedAide && (early || this.s.r() < 0.7);   // 매수된 부감독은 일부러 엉뚱한 학생을 가리킴
       const pool = cheaters.length && honest ? cheaters : seated.filter((x) => !isCheating(x));
       if (pool.length) {
         const st = pool[Math.floor(this.s.r() * pool.length)];
         this.toast(`부감독이 헛기침을 하며 ${st.seat}번 쪽을 봅니다`, 4, COLORS.accent);
         this.s.aideHintSeats.push(st.seat);
       }
+      if (early && cheaters.length) this.aideHintAt = this.t + 50;   // 남은 사람이 있으면 다시 알려 줌
     }
     if (this.windowSeat >= 0 && this.t >= this.windowFrom && this.t < this.windowFrom + 0.1) {
       const st = this.students[this.windowSeat];
@@ -399,14 +402,14 @@ export class ExamScene {
     }
 
     // 학생 행동
-    // 초반(1~9회차)은 1.5m까지 다가가도 부정행위를 계속함
+    // 1~3회차는 다가가도 멈추지 않음, 4~9회차는 1.5m까지 계속함
     const ctx = {
       t: this.t, dt, r: this.s.r, level: this.s.room.level,
       dist: (st: Student) => this.dist(st),
       watched: (st: Student) => this.watched(st),
       noticed: (st: Student) => this.noticed(st),
       collecting: this.collectT > 0,
-      freezeRange: this.mode === "cctv" ? 3.3 : this.tiptoe ? 1.4 : this.s.room.level <= 9 ? 1.5 : FREEZE_RANGE, outage: this.outage(), lastMinutes: this.lastMinutes(),
+      freezeRange: this.mode === "cctv" ? 3.3 : this.tiptoe ? 1.4 : this.s.room.level <= 3 ? 0 : this.s.room.level <= 9 ? 1.5 : FREEZE_RANGE, outage: this.outage(), lastMinutes: this.lastMinutes(),
     };
     for (const st of this.students) {
       updateStudent(st, ctx);
@@ -849,7 +852,11 @@ export class ExamScene {
     px(g, 6, 24, Math.round(100 * (remain / this.periodLen)), 4, this.lastMinutes() ? (hurry ? COLORS.alert : "#ff8a7f") : COLORS.accent);
     if (this.lastMinutes()) label(g, "종료 10분 전", 110, 20, { font: KR(11), color: COLORS.alert });
     const caught = this.s.catches.filter((c) => c.correct).length + this.s.gateEjected.length;
-    label(g, `CAUGHT ${caught}/?`, 6, 32, { font: PIX(8) });
+    if (this.s.room.level <= 3) {   // 초반은 남은 인원을 알려 줌
+      const left = this.students.filter((o) => isCheating(o)).length;
+      label(g, `CAUGHT ${caught}`, 6, 32, { font: PIX(8) });
+      label(g, left ? `남은 부정행위자 ${left}명` : "남은 부정행위자 없음", 6, 44, { font: KR(11), color: COLORS.accent });
+    } else label(g, `CAUGHT ${caught}/?`, 6, 32, { font: PIX(8) });
     // 민원 게이지 3칸
     label(g, "민원", W - 92, 6, { font: KR(12) });
     for (let k = 0; k < COMPLAINT_MAX; k++) {
