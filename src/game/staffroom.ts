@@ -18,6 +18,7 @@ function colleagueLine(s: Session, d: ResultData): string {
     [perfect && firstT < 60, "벌써 찾으셨어요? 눈이 매섭다고 소문나겠는데요."],
     [!!fresh, fresh ? `${fresh.name}이요? 그런 것도 있군요. 수첩에 꼭 적어 두세요.` : ""],
     [perfect, "오늘 그 교실은 아무 일 없었다면서요? 깔끔하네요."],
+    [s.used.includes("report"), "반장이 제보해 줬다면서요? 요즘 애들 참 든든하네요."],
     [s.used.includes("overtimeCatch"), "종료령 뒤에도 쓰는 학생, 은근히 있어요. 끝까지 잘 봤네요."],
     [s.used.includes("outage"), "아까 정전 났을 때 놀랐죠? 방송실도 한참 우왕좌왕했대요."],
     [d.prevented.length > 0, "입실 검사에서 미리 막았다면서요. 그게 제일 깔끔한 방법이에요."],
