@@ -9,6 +9,7 @@ import { ExamScene } from "./game/exam";
 import { BreakScene } from "./game/breakScene";
 import { ResultScene } from "./game/result";
 import { GateScene } from "./game/gate";
+import { StaffroomScene } from "./game/staffroom";
 import { END_WHEN_ALL_CAUGHT } from "./data/rules";
 import { isCheating } from "./world/student";
 
@@ -83,11 +84,13 @@ function startPeriod(p: 0 | 1 | 2): void {
 function showResult(): void {
   input.releaseLock();
   const s = session!;
-  scene = new ResultScene(s, {
-    next: () => startSession(),
+  const rs: ResultScene = new ResultScene(s, {
+    // 다음 감독 전에 교무실 한 컷 (오늘의 시험실은 바로)
+    next: () => { if (s.daily) startSession(); else scene = new StaffroomScene(s, rs.data, () => startSession()); },
     retry: () => startSession(s.room.level),
     title: goTitle,
   });
+  scene = rs;
 }
 
 // 개발용: 주소 끝에 #lv=12 를 붙이면 그 회차로 바로 시작
