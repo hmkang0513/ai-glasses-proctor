@@ -35,8 +35,10 @@ function chiefComment(d: ResultData, s: Session): [string, string] {
   const caught = d.caughtExam.length + d.caughtGate.length + d.prevented.length;
   const firstT = Math.min(...s.catches.filter((c) => c.correct && c.period === 0).map((c) => c.t), 999);
   const back = s.path.some(([, , z]) => z > 9.2);
+  if (s.replaced) return ["오늘은 민원이 많았네요. 확실할 때만 잡아도 충분해요.", "다시 해 봅시다."];
   let good = "끝까지 자리를 지켰습니다. 수고했어요.";
-  if (caught > 0 && firstT < 60) good = "첫 적발이 1분도 안 걸렸습니다!";
+  if (caught > 0 && !d.missed.length && !d.wrong.length) good = firstT < 60 ? "완벽한 감독이었습니다. 첫 적발도 1분 안! 이 교실은 안심이에요." : "완벽한 감독이었습니다. 이 교실은 안심이에요.";
+  else if (caught > 0 && firstT < 60) good = "첫 적발이 1분도 안 걸렸습니다!";
   else if (caught > 0 && !d.wrong.length) good = "무고한 학생을 한 명도 잡지 않았습니다. 침착했어요.";
   else if (d.prevented.length + d.caughtGate.length > 0) good = "입실 검사에서 미리 막아 냈네요.";
   else if (back) good = "뒷줄까지 꼼꼼히 돌았네요.";
@@ -45,7 +47,7 @@ function chiefComment(d: ResultData, s: Session): [string, string] {
   if (marked >= 2 && real >= 1 && good.startsWith("끝까지")) good = `의심 표시 ${marked}명 중 ${real}명이 진짜였어요. 눈썰미가 좋네요.`;
   let tip = "";
   if (d.missed.length && !back) tip = "다음엔 뒤쪽 줄도 한 번 가 봅시다.";
-  else if (d.missed.length) tip = "놓친 학생의 행동은 위 칸에서 확인해 보세요.";
+  else if (d.missed.length) tip = "놓친 학생은 배치도의 빨간 칸이에요.";
   else if (d.wrong.length) tip = "확실할 때만 잡아도 충분합니다.";
   return [good, tip];
 }
@@ -256,9 +258,19 @@ export class ResultScene {
       if (w.alumnus?.clean) { box(`오인 · ${w.seat}번 (재응시생)`, `작년 기록만 보고 판단했습니다. 올해는 깨끗하게 시험을 봤습니다.`, "#5a554b", "#e2ded3"); continue; }
       box(`오인 · ${w.seat}번`, byHint ? `부감독 헛기침 힌트가 틀렸습니다(힌트는 약 70%만 맞음). 실제로는 ${reason}이었습니다.` : `${reason}이었습니다. 무고한 학생이었습니다.`, "#5a554b", "#e2ded3");
     }
-    if (!d.missed.length && !d.wrong.length) box("깨끗한 감독", "놓친 학생도, 잘못 잡은 학생도 없습니다.", "#2f6b3a", "#e0eddc");
-    // 수석감독관 한마디: 잘한 점 먼저, 아쉬운 점은 하나만 부드럽게
-    {
+    const clean = !d.missed.length && !d.wrong.length && !s.replaced;
+    if (clean) {
+      // 노란 메모지(살짝 기울임)에 수석감독관 손글씨
+      const [good] = chiefComment(d, s);
+      g.save(); g.translate(sx + 113, y + 32); g.rotate(-0.03);
+      px(g, -110, -28, 222, 60, "#00000022"); px(g, -112, -30, 222, 60, "#f7e27a"); px(g, -112, -30, 222, 6, "#efd25a");
+      g.font = KR(11); g.fillStyle = "#7a5a10"; g.fillText("수석감독관 메모", -104, -21);
+      g.font = KR(13); g.fillStyle = "#3a2a10";
+      wrapText(g, good, 206).slice(0, 2).forEach((l, i) => g.fillText(l, -104, -6 + i * 16));
+      g.restore();
+    }
+    // 수석감독관 한마디: 잘한 점 먼저, 아쉬운 점은 하나만 부드럽게 (메모지를 붙였으면 생략)
+    if (!clean) {
       const [good, tip] = chiefComment(d, s);
       g.fillStyle = COLORS.navy;
       for (const [k, line] of [good, tip].filter(Boolean).entries()) {

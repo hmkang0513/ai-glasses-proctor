@@ -32,6 +32,13 @@ function drawFace(g: Ctx, s: Student, t: number): void {
     else { px(g, ex, 28, 7, 4, "#f7f4ee"); px(g, ex + 2 + look, 28 + down, 3, 4 - down, "#2a1d16"); }
   }
   px(g, 31, 34, 2, 5, "#00000022");
+  // 적발된 순간: 눈이 커지고 입이 벌어짐
+  if (s.status === "leaving" && s.outcome === "caught") {
+    for (const ex of [20, 35]) { px(g, ex, 26, 9, 7, "#f7f4ee"); px(g, ex + 3, 28, 3, 3, "#2a1d16"); }
+    px(g, 20, 23, 9, 1, "#2a1d16"); px(g, 35, 23, 9, 1, "#2a1d16");   // 치켜뜬 눈썹
+    px(g, 29, 40, 6, 5, "#5a2a26");
+    return;
+  }
   // 입: 질문할 때 움직임, 기침
   if (pose === "mouth" && Math.floor(t * 8) % 2 === 0) px(g, 28, 41, 8, 4, "#8a3f38");
   else if (pose === "cough") px(g, 26, 40, 12, 6, s.skin);
