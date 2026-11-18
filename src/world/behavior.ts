@@ -54,7 +54,8 @@ export function updateStudent(s: Student, ctx: BehaviorCtx): void {
       }
       const step = loop[s.loopIdx];
       s.pose = step.pose;
-      if (s.stepT >= step.dur) {
+      const slow = ctx.level <= 5 ? 1.5 : ctx.level <= 9 ? 1.25 : 1;   // 초반 회차는 동작을 오래 보여 줌
+      if (s.stepT >= step.dur * slow) {
         s.stepT = 0;
         s.loopIdx++;
         if (s.loopIdx >= loop.length) {

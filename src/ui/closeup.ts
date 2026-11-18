@@ -150,6 +150,9 @@ function drawHands(g: Ctx, s: Student, t: number): void {
     }
   }
   // 소품
+  if (pose !== "eraser" && tells.eraserNote) {   // 책상 위 지우개: 포장지 틈으로 종이가 보임
+    px(g, 50, 40, 10, 6, "#f2f2f2"); px(g, 50, 40, 10, 2, "#4a7ac0"); px(g, 58, 42, 2, 4, "#fffbe8");
+  }
   if (pose === "eraser") {
     px(g, 20, 44, 14, 8, "#f2f2f2"); px(g, 20, 44, 14, 3, "#4a7ac0");
     if (tells.eraserNote) { px(g, 22, 48, 9, 1, "#555"); px(g, 22, 50, 7, 1, "#555"); }

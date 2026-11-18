@@ -399,13 +399,14 @@ export class ExamScene {
     }
 
     // 학생 행동
+    // 초반(1~9회차)은 1.5m까지 다가가도 부정행위를 계속함
     const ctx = {
       t: this.t, dt, r: this.s.r, level: this.s.room.level,
       dist: (st: Student) => this.dist(st),
       watched: (st: Student) => this.watched(st),
       noticed: (st: Student) => this.noticed(st),
       collecting: this.collectT > 0,
-      freezeRange: this.mode === "cctv" ? 3.3 : this.tiptoe ? 1.4 : FREEZE_RANGE, outage: this.outage(), lastMinutes: this.lastMinutes(),
+      freezeRange: this.mode === "cctv" ? 3.3 : this.tiptoe ? 1.4 : this.s.room.level <= 9 ? 1.5 : FREEZE_RANGE, outage: this.outage(), lastMinutes: this.lastMinutes(),
     };
     for (const st of this.students) {
       updateStudent(st, ctx);

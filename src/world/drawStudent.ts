@@ -254,6 +254,7 @@ export function drawStudent(g: Ctx, s: Student, o: DrawOpts): void {
       break;
     case "underdesk":
       px(g, CX - 7, Y - 1, 3, 2, sh); px(g, CX + 4, Y - 1, 3, 2, sh);
+      if (s.cheat && s.cheat.family === "phone" && s.acting) { g.fillStyle = "rgba(127,200,255,0.55)"; g.fillRect(CX - 5, Y + 13, 10, 3); }   // 책상 밑 화면 불빛
       break;
     case "palm":
       if (s.cheat?.tells.palmNote && s.cheat.id === "palm") {
@@ -269,6 +270,7 @@ export function drawStudent(g: Ctx, s: Student, o: DrawOpts): void {
       break;
     case "eraser":
       px(g, CX - 6, Y + 1, 4, 3, "#f2f2f2"); px(g, CX - 6, Y + 1, 4, 1, "#4a7ac0");
+      if (s.cheat?.tells.eraserNote) { px(g, CX - 9, Y - 3, 6, 4, "#fffbe8"); px(g, CX - 8, Y - 2, 4, 1, "#555"); px(g, CX - 8, Y, 3, 1, "#555"); }   // 펼친 쪽지
       px(g, CX - 7, Y + 3, 2, 2, skin); px(g, CX - 3, Y + 3, 2, 2, skin);
       break;
     case "bottle":
