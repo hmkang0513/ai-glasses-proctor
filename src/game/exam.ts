@@ -60,6 +60,7 @@ export class ExamScene {
   collectDone = false;
   penAt = 0;
   hitstopUntil = 0;
+  askLeft = 1;                            // H: 부감독에게 묻기 (교시당 1번)
   flies: Array<{ t0: number; family: string }> = [];   // 압수품이 명부로 날아감
   notice = { seat: -1, text: "", until: 0, color: "" };   // 관찰 패널의 '눈에 띈 것' 한 줄                               // 다음 펜 소리 시각
   radioCharges = 2;
@@ -89,6 +90,7 @@ export class ExamScene {
 
   constructor(public s: Session, private onEnd: () => void) {
     this.mode = s.save.mode;
+    for (const seat of s.marked) this.marks.add(seat - 1);   // 앞 교시의 의심 표시 이어 받기
     this.base = makeCanvas(W, H);
     this.spr = makeCanvas(SPR_W, SPR_H);
     this.dst = new ImageData(W, H);
@@ -151,7 +153,8 @@ export class ExamScene {
 
   /** 휴대폰 화면 버튼 (오른쪽 아래 두 줄) */
   private buildTouchUi(): TouchButton[] {
-    const list: Array<[string, string]> = [["KeyE", "관찰"], ["KeyF", "적발"], ["KeyT", "열화상"]];
+    const list: Array<[string, string]> = [["KeyE", "관찰"], ["KeyF", "적발"], ["KeyZ", "표시"], ["KeyT", "열화상"]];
+    if (this.askLeft > 0) list.push(["KeyH", "묻기"]);
     if (this.s.room.level >= 16) list.push(["KeyR", "전파"]);
     list.push(["Tab", this.mode === "cctv" ? "교실" : "CCTV"], ["KeyQ", "명부"]);
     return list.map(([code, label], k) => ({ code, label, x: 404 + (k % 2) * 38, y: 146 + Math.floor(k / 2) * 30, w: 34, h: 26 }));
@@ -539,6 +542,30 @@ export class ExamScene {
     this.target = this.pickTarget();
 
     if (this.endAt > 0) return;   // 끝나는 중에는 관찰·적발 불가
+    // H: 부감독에게 묻기 — 남은 부정행위자가 있는 구역을 알려 줌 (교시당 1번)
+    if (inp.hit("KeyH")) {
+      if (this.askLeft <= 0) this.toast("부감독: 이번 교시엔 더 드릴 말씀이 없어요", 2);
+      else {
+        this.askLeft--;
+        const left = this.students.filter((x) => isCheating(x));
+        if (!left.length) this.toast("부감독: 제 쪽에서는 이상한 게 안 보여요", 3, COLORS.accent);
+        else {
+          const st = left[Math.floor(this.s.r() * left.length)];
+          const row = st.z < 8 ? "앞쪽 두 줄" : "뒤쪽 두 줄";
+          const side = st.x < ROOM_W / 2 ? "창가 쪽" : "복도 쪽";
+          this.toast(`부감독(귓속말): ${row} ${side}이 좀 수상해요`, 4, COLORS.accent);
+        }
+      }
+    }
+    // Z: 의심 표시 (명부에 연필 동그라미) — 판정에는 영향 없음
+    if (inp.hit("KeyZ") && this.mode === "fp") {
+      const i = this.panel >= 0 ? this.panel : this.target;
+      if (i >= 0) {
+        const seat = this.students[i].seat;
+        if (this.marks.has(i)) { this.marks.delete(i); this.s.marked = this.s.marked.filter((x) => x !== seat); this.toast(`${seat}번 표시 지움`, 1.2); }
+        else { this.marks.add(i); if (!this.s.marked.includes(seat)) this.s.marked.push(seat); this.toast(`${seat}번 의심 표시`, 1.2); }
+      }
+    }
     // E: 관찰
     if (inp.hit("KeyE")) {
       if (this.panel >= 0) this.panel = -1;
@@ -583,8 +610,9 @@ export class ExamScene {
         if (d < bd) { bd = d; best = st.i; }
       }
       if (best >= 0) {
-        if (this.marks.has(best)) this.marks.delete(best);
-        else this.marks.add(best);
+        const seat = this.students[best].seat;
+        if (this.marks.has(best)) { this.marks.delete(best); this.s.marked = this.s.marked.filter((x) => x !== seat); }
+        else { this.marks.add(best); if (!this.s.marked.includes(seat)) this.s.marked.push(seat); }
       }
     }
   }
@@ -802,7 +830,7 @@ export class ExamScene {
       for (const L of local) lights.push({ x: Math.round(left + (L.x + 0.5) * sc), y: Math.round(top + (L.y + 0.5) * sc), r: Math.max(3, Math.round(11 * sc * 0.6)), c: [255, 70, 50], s: 0.95 });
       if (it.kind === "seat" && it.st.status === "seated" && this.s.room.level <= 5 && this.t - (this.actStart[it.st.i] ?? -99) < 1.2) bangs.push([fx, top + 5 * sc]);
       // CCTV에서 표시한 학생 머리 위 표시
-      if (it.kind === "seat" && this.marks.has(it.st.i) && it.st.status === "seated") px(bg, fx - 2, top - 6, 4, 4, COLORS.accent);
+      if (it.kind === "seat" && this.marks.has(it.st.i) && it.st.status === "seated") { const my = Math.round(top + 5 * sc - 14); px(bg, fx - 3, my - 1, 7, 7, "#1a1414"); px(bg, fx - 2, my, 5, 5, COLORS.accent); px(bg, fx - 1, my + 1, 3, 3, "#1a1414"); }
     }
     drawClipboard(bg, this.t, this.moving, Math.min(8, this.s.catches.filter((c) => c.correct).length - this.flies.filter((f) => this.rt - f.t0 < 0.7).length));
     const src = bg.getImageData(0, 0, W, H);

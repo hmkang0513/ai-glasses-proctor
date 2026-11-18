@@ -41,6 +41,8 @@ function chiefComment(d: ResultData, s: Session): [string, string] {
   else if (d.prevented.length + d.caughtGate.length > 0) good = "입실 검사에서 미리 막아 냈네요.";
   else if (back) good = "뒷줄까지 꼼꼼히 돌았네요.";
   else if (caught > 0) good = "부정행위자를 찾아냈습니다. 잘했어요.";
+  const marked = s.marked.length, real = s.marked.filter((seat) => s.room.students[seat - 1].cheat).length;
+  if (marked >= 2 && real >= 1 && good.startsWith("끝까지")) good = `의심 표시 ${marked}명 중 ${real}명이 진짜였어요. 눈썰미가 좋네요.`;
   let tip = "";
   if (d.missed.length && !back) tip = "다음엔 뒤쪽 줄도 한 번 가 봅시다.";
   else if (d.missed.length) tip = "놓친 학생의 행동은 위 칸에서 확인해 보세요.";
