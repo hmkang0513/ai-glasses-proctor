@@ -80,7 +80,7 @@ function blankStudent(i: number, r: Rng): Student {
     i, seat: i + 1, x: COLX[i % 5], z: ROWZ[Math.floor(i / 5)],
     hair: pick(r, HAIR), shirt: pick(r, SHIRT), skin: pick(r, SKIN), longHair: r() < 0.4,
     glasses: null, watch: "none", alumnus: null,
-    cheat: null, aiGen: 0, partner: -1, group: -1, habits: [], timid: false, lastStretchAt: -99, skipGlanceUntil: -1,
+    cheat: null, aiGen: 0, partner: -1, group: -1, habits: [], timid: false, lastStretchAt: -99, overtime: false, skipGlanceUntil: -1,
     pose: "write", loopIdx: 0, stepT: 0, acting: false, habitPose: null, habitT: 0, lastHabit: null,
     nextCheatAt: 0, nextHabitAt: 0, combos: 0, heatUntil: -1, ledOn: false,
     observed: false, stareT: 0, stareComplained: false,
@@ -223,6 +223,7 @@ export function buildRoom(level: number, seed = level * 7919 + 13, alumnus: Alum
     }
   }
 
+  if (level === 10) notes.push("올해부터 LED를 가린 얇은 AI 안경(2세대)이 나옵니다. 안경다리를 만진 직후 10초 안에 열화상(T)으로 보면 테가 뜨겁습니다. 갑자기 정전이 나면 당황하지 말고 LED·화면 불빛을 찾으세요.");
   if (level === 16) notes.push("시험장 지급 장비: 전파 탐지기(R). 관찰 중 쓰면 무선 기기가 켜져 있을 때 바늘이 흔들립니다. 교시당 2회.");
 
   // --- 대리시험: 수험표 사진 불일치 ---

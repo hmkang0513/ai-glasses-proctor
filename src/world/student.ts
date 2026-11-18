@@ -22,6 +22,7 @@ export interface Student {
   alumnus: { from: number; method: string; clean: boolean } | null;      // 재응시생 (예전에 적발한 학생)
 
   cheat: CheatMethod | null;
+  overtime: boolean;   // 종료령 뒤에도 답안을 씀 (수법은 바꾸지 않고 표시만)
   aiGen: number;       // 이 학생 안경의 AI 세대 (0이면 일반 안경)
   partner: number;     // 짝 수법의 상대 자리 (-1 없음)
   group: number;       // 집단 수법 묶음 번호 (-1 없음)

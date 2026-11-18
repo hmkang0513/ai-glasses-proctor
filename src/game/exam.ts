@@ -57,6 +57,7 @@ export class ExamScene {
   lastGlance: number[] = [];               // 학생별 마지막 흘끗 시각
   collectT = 0;                            // 종료령 뒤 답안지 회수 남은 시간
   collectDone = false;
+  penAt = 0;                               // 다음 펜 소리 시각
   radioCharges = 2;
   radioUntil = -1;
   radioExplained = false;
@@ -162,7 +163,7 @@ export class ExamScene {
       g.font = KR(11);
       const tw = Math.ceil(g.measureText(text).width) + 8;
       const x = behind ? W / 2 - tw / 2 : Math.max(6, Math.min(W - tw - 6, W / 2 + Math.sin(c.a) * 190 - tw / 2));
-      label(g, text, Math.round(x), (behind ? 220 : 64) - n * 15, { font: KR(11), color: "#cfe3ff" });
+      label(g, text, Math.round(x), (behind ? 220 : 100) - n * 15, { font: KR(11), color: "#cfe3ff" });
     });
   }
 
@@ -195,7 +196,7 @@ export class ExamScene {
     const vol = base * Math.max(0, 1 - Math.hypot(dx, dz) / range);
     play(kind, Math.sin(a), vol, Math.abs(a) > Math.PI / 2);
     // 자막: 진동음(진동·다리 떨기 같은 이름), 딸깍, 기침, 작은 말소리만
-    const names: Partial<Record<SoundKind, string>> = { buzz: "진동음", hum: "진동음", click: "딸깍", cough: "기침", whisper: "작은 말소리" };
+    const names: Partial<Record<SoundKind, string>> = { ...(this.collectT > 0 ? { page: "펜 소리" } : {}), buzz: "진동음", hum: "진동음", click: "딸깍", cough: "기침", whisper: "작은 말소리" };
     if (this.captionsOn && names[kind] && vol > 0.08) this.captions.push({ text: names[kind]!, a, until: this.rt + 1.6 });
   }
 
@@ -435,18 +436,21 @@ export class ExamScene {
       // 종료령 → 답안지 회수 (5회차부터). 35% 확률로 펜을 내려놓지 않는 학생이 있다
       if (!this.collectDone && this.s.room.level >= 5 && !this.ended) {
         if (this.collectT <= 0) {
-          this.collectT = 12; this.collectDone = true;
+          this.collectT = 4; this.collectDone = true;   // 아무도 안 쓰면 짧게 연출만
           this.toast("종료령이 울렸습니다. 필기구를 내려놓으세요 · 답안지를 회수합니다", 3, COLORS.accent);
           if (this.s.r() < 0.35) {
             const seated = this.students.filter((x) => x.status === "seated");
             const pool = seated.filter((x) => x.cheat).length && this.s.r() < 0.6 ? seated.filter((x) => x.cheat) : seated;
             const st = pool[Math.floor(this.s.r() * pool.length)];
-            if (st) st.cheat = CHEAT_BY_ID.overtime;   // 이 학생만 계속 씀
+            if (st) { st.overtime = true; this.collectT = 12; this.penAt = 0; }   // 이 학생만 계속 씀 (원래 수법은 그대로)
           }
         }
       } else if (this.collectT <= 0) this.finish("time");   // 회수 중에는 끝내지 않음
     }
     if (this.collectT > 0) {
+      // 계속 쓰는 학생 자리에서 사각사각 펜 소리 (얼어붙은 교실에서 찾을 단서)
+      const ot = this.students.find((x) => x.overtime && x.status === "seated");
+      if (ot && this.t >= this.penAt) { this.penAt = this.t + 1.1; this.soundAt("page", ot, 0.7); }
       this.collectT -= dt;
       if (this.collectT <= 0) this.finish("time");
     }
@@ -580,6 +584,8 @@ export class ExamScene {
     if (!st.observed) { this.toast("관찰(E)한 학생만 적발할 수 있습니다", 2); return; }
     if (this.dist(st) > ACCUSE_RANGE) { this.toast("조금 더 가까이 가서 조용히 처리하세요", 2); return; }
     if (this.pre > 0) { this.checkWatch(st); return; }
+    const overtimeCatch = this.collectT > 0 && st.overtime && st.status === "seated";
+    if (overtimeCatch && !st.cheat) st.cheat = CHEAT_BY_ID.overtime;   // 원래 무고했던 학생: 종료령 뒤 작성으로 적발
     const correct = isCheating(st);
     if (!correct && this.s.room.level <= 2 && !this.s.warningUsed) {
       this.s.warningUsed = true;
@@ -850,7 +856,7 @@ export class ExamScene {
     px(g, 6, 24, 100, 4, COLORS.line);
     const hurry = this.lastMinutes() && Math.floor(this.rt * 2) % 2 === 0;
     px(g, 6, 24, Math.round(100 * (remain / this.periodLen)), 4, this.lastMinutes() ? (hurry ? COLORS.alert : "#ff8a7f") : COLORS.accent);
-    if (this.lastMinutes()) label(g, "종료 10분 전", 110, 20, { font: KR(11), color: COLORS.alert });
+    if (this.lastMinutes() && this.t < this.periodLen) label(g, "종료 10분 전", 110, 20, { font: KR(11), color: COLORS.alert });
     const caught = this.s.catches.filter((c) => c.correct).length + this.s.gateEjected.length;
     if (this.s.room.level <= 3) {   // 초반은 남은 인원을 알려 줌
       const left = this.students.filter((o) => isCheating(o)).length;

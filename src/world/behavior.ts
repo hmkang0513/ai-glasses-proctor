@@ -34,7 +34,7 @@ export function updateStudent(s: Student, ctx: BehaviorCtx): void {
   // 감독관이 바로 옆에서 보고 있으면 부정행위를 멈춘다
   const near = ctx.dist(s) < ctx.freezeRange && (ctx.noticed ? ctx.noticed(s) : ctx.watched(s));
   // 종료령 뒤: 모두 펜을 내려놓음. 종료 후 답안을 쓰는 학생만 계속 씀
-  if (ctx.collecting) { s.acting = false; s.habitPose = null; s.pose = s.cheat?.id === "overtime" ? "burst" : "stare"; return; }
+  if (ctx.collecting) { s.acting = false; s.habitPose = null; s.pose = s.overtime ? "burst" : "stare"; return; }
   if (cheating && s.acting && near) {
     s.acting = false;
     s.pose = "write";

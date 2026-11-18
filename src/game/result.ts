@@ -42,8 +42,6 @@ export function computeResult(s: Session): ResultData {
   const bad = missed.length + wrong.length;
   const early = s.catches.filter((c) => c.correct).every((c) => c.t < EXAM_SECONDS / 2);
   let grade: Grade = bad === 0 ? (early ? "S" : "A") : bad === 1 ? "B" : bad <= 3 ? "C" : "D";
-  const cheaters = caughtExam.length + caughtGate.length + prevented.length + missed.length;
-  if (cheaters > 0 && caughtExam.length + caughtGate.length + prevented.length === 0) grade = "D";
   if (s.replaced) grade = "F";
   const pass = grade !== "D" && grade !== "F";
   // 감독관 수첩: 이번에 처음 밝혀진 수법
@@ -201,7 +199,7 @@ export class ResultScene {
     // 등급 근거 한 줄
     {
       const bad = d.missed.length + d.wrong.length;
-      const why = d.grade === "F" ? "민원 3칸: 감독관 교체" : d.grade === "D" && bad <= 3 ? "한 명도 잡거나 막지 못함" :
+      const why = d.grade === "F" ? "민원 3칸: 감독관 교체" :
         d.grade === "S" ? "놓침·오인 0 + 전반부에 모두 적발" : d.grade === "A" ? "놓침·오인 0" : `놓침+오인 ${bad}명 → ${d.grade}`;
       g.font = KR(11); g.fillStyle = "#9c2d23"; g.fillText(`등급 근거: ${why}`, sx, 130);
     }
@@ -227,7 +225,7 @@ export class ResultScene {
       const acts = s.acts.filter((a) => a.seat === m.seat);
       const seen = acts.filter((a) => a.near).length;
       const why = acts.length ? ` (행동 ${acts.length}번 중 가까이서 본 건 ${seen}번)` : "";
-      box(`놓친 학생 · ${m.seat}번 · ${m.cheat!.name}`, why.trim() + " " + m.cheat!.hint, "#9c2d23", "#f7e3df");
+      box(`놓친 학생 · ${m.seat}번 · ${m.cheat!.name}`, why.trim() + (m.overtime ? " 종료령 뒤에도 답안을 썼습니다." : "") + " " + m.cheat!.hint, "#9c2d23", "#f7e3df");
     }
     const shown = Math.min(2, d.missed.length);
     if (d.missed.length > shown) { g.font = KR(11); g.fillStyle = "#9c2d23"; g.fillText(`놓친 학생 외 ${d.missed.length - shown}명 더 (수첩에 기록됨)`, sx, Math.min(y + 2, 218)); }
