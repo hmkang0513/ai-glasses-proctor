@@ -57,19 +57,21 @@ export function newSession(save: SaveData, levelOverride?: number, attempt = 0, 
     room, save, r: makeRng(room.seed ^ 0x5eed),
     period: 0, complaints: 0, warningUsed: false,
     catches: [], gateHeld: [], gateEjected: [], gateWrong: [], smuggled: [],
-    replaced: false, aideHintSeats: [], marked: [], used: [], goal: pickGoal(level, room.seed), seenClues: [], path: [], acts: [], daily, startedAt: performance.now(),
+    replaced: false, aideHintSeats: [], marked: [], used: [], goal: pickGoal(level, room.seed, save.usedEver ?? [], save.lastGoal), seenClues: [], path: [], acts: [], daily, startedAt: performance.now(),
   };
 }
 
 /** 오늘의 작은 목표: 새 도구를 한 번씩 써 보게 하는 부드러운 안내 (못 해도 불이익 없음) */
-export function pickGoal(level: number, seed: number): { id: string; text: string } | null {
+export function pickGoal(level: number, seed: number, usedEver: string[] = [], last?: string): { id: string; text: string } | null {
   if (level < 3) return null;
   const list: Array<[string, string, number]> = [
     ["back", "뒤쪽 줄까지 한 바퀴 돌기", 3], ["calm", "민원 없이 끝내기", 3], ["mark", "Z로 의심 표시 해 보기", 3],
     ["cctv", "Tab으로 CCTV 화면 한 번 보기", 3], ["thermal", "열화상(T) 한 번 써 보기", 6], ["tiptoe", "Shift 까치발로 걸어 보기", 5],
     ["ask", "H로 부감독에게 물어보기", 3], ["radio", "전파 탐지기(R) 써 보기", 16],
   ];
-  const ok = list.filter((g) => level >= g[2]);
+  let ok = list.filter((g) => level >= g[2] && g[0] !== last);
+  const fresh = ok.filter((g) => !usedEver.includes(g[0]));   // 안 써 본 도구부터
+  if (fresh.length) ok = fresh;
   const g = ok[Math.abs(seed * 31 + level * 7) % ok.length];
   return { id: g[0], text: g[1] };
 }

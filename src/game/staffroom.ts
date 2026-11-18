@@ -4,33 +4,36 @@ import type { Input } from "../core/input";
 import { CHEAT_BY_ID } from "../data/cheats";
 import type { ResultData } from "./result";
 import type { Session } from "./session";
+import { writeSave } from "../core/save";
 
-/** 상황에 맞는 동료 대사 하나 (게임 설정) */
+/** 상황에 맞는 동료 대사: 위에서부터 조건이 맞는 것 중 최근 3판에 안 나온 첫 줄 (게임 설정) */
 function colleagueLine(s: Session, d: ResultData): string {
-  const lv = s.room.level;
-  const seed = lv * 13 + s.catches.length;
-  const pick = (a: string[]) => a[seed % a.length];
-  // 처음 만난 수법이 있으면 실제 사례 이야기
-  const fresh = d.newNotes.map((id) => CHEAT_BY_ID[id]).find((c) => c && c.url);
-  if (fresh) return `오늘 "${fresh.name}" 보셨다면서요? 실제로도 있었던 일이래요. (${fresh.source})`;
-  if (!d.missed.length && !d.wrong.length) return pick([
-    "그 교실 조용했다면서요? 역시 꼼꼼하시네요.",
-    "오늘 깔끔하게 끝내셨네요. 커피 한잔하세요.",
-    "수석감독관님이 칭찬하시던데요?",
-  ]);
-  if (d.wrong.length) return pick([
-    "민원 처리하느라 고생하셨어요. 애매하면 조금 더 지켜봐도 돼요.",
-    "저도 처음엔 안경 고쳐 쓰는 애들만 봐도 다 수상해 보였어요.",
-  ]);
-  if (d.missed.length) return pick([
-    "놓친 건 결과표에 다 나와요. 다음엔 보일 거예요.",
-    "뒤쪽 줄은 부감독이랑 나눠 보면 편해요. H로 물어보세요.",
-    "요즘 수법이 워낙 다양해서요. 수첩 한번 넘겨 보세요.",
-  ]);
-  return pick([
-    "요즘 AI 안경 뉴스 보셨어요? 올해 수능부터 반입 금지래요.",
-    "오늘도 수고 많으셨어요. 내일도 감독 있으시죠?",
-  ]);
+  const fresh = d.newNotes.map((id) => CHEAT_BY_ID[id]).find(Boolean);
+  const perfect = !d.missed.length && !d.wrong.length && !s.replaced;
+  const firstT = Math.min(...s.catches.filter((c) => c.correct && c.period === 0).map((c) => c.t), 999);
+  const rows: Array<[boolean, string]> = [
+    [s.room.level === 1, "첫 감독 어땠어요? 저도 처음엔 다리가 후들거렸어요."],
+    [s.replaced, "오늘은 민원이 많았죠? 커피 한잔하고 내일 다시 해요."],
+    [perfect && firstT < 60, "벌써 찾으셨어요? 눈이 매섭다고 소문나겠는데요."],
+    [!!fresh, fresh ? `${fresh.name}이요? 그런 것도 있군요. 수첩에 꼭 적어 두세요.` : ""],
+    [perfect, "오늘 그 교실은 아무 일 없었다면서요? 깔끔하네요."],
+    [s.used.includes("overtimeCatch"), "종료령 뒤에도 쓰는 학생, 은근히 있어요. 끝까지 잘 봤네요."],
+    [s.used.includes("outage"), "아까 정전 났을 때 놀랐죠? 방송실도 한참 우왕좌왕했대요."],
+    [d.prevented.length > 0, "입실 검사에서 미리 막았다면서요. 그게 제일 깔끔한 방법이에요."],
+    [s.room.students.some((x) => x.alumnus), "예전에 그 학생 기억나요? 올해 다시 시험 보러 왔더라고요."],
+    [s.room.periods === 3, "듣기평가 땐 발소리 하나에도 신경 쓰이죠. 고생했어요."],
+    [d.missed.length > 0, "다 잡는 사람은 없어요. 놓친 건 결과 보고서에서 한 번 보고 가요."],
+    [d.wrong.length > 0, "저도 기침하는 애를 의심한 적이 있어요. 확실할 때만 잡아도 돼요."],
+    [s.room.theme === "cold", "오늘 교실마다 기침 소리가 엄청났대요. 마스크 챙기세요."],
+    [s.room.theme === "rain", "비 오는 날은 교실이 어둑해서 눈이 더 피곤하죠."],
+    [true, "요즘 AI 안경 뉴스 보셨어요? 감독도 점점 바빠지네요."],
+    [true, "오늘도 수고 많으셨어요. 내일도 감독 있으시죠?"],
+  ];
+  const recent = s.save.recentLines ?? [];
+  const ok = rows.filter(([c, l]) => c && l);
+  const line = (ok.find(([, l]) => !recent.includes(l)) ?? ok[0])[1];
+  s.save.recentLines = [...recent, line].slice(-3);
+  return line;
 }
 
 export class StaffroomScene {
@@ -38,6 +41,7 @@ export class StaffroomScene {
   line: string;
   constructor(private s: Session, d: ResultData, private onDone: () => void) {
     this.line = colleagueLine(s, d);
+    writeSave(s.save);   // 최근 대사 기억 (3판 안 반복 금지)
   }
   update(dt: number, inp: Input): void {
     this.t += dt;

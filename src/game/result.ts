@@ -112,6 +112,8 @@ export class ResultScene {
       sv.alumni.push({ hair: x.hair, shirt: x.shirt, skin: x.skin, longHair: x.longHair, method: x.cheat!.id, level: s.room.level });
     }
     sv.alumni = sv.alumni.slice(-30);
+    sv.usedEver = [...new Set([...(sv.usedEver ?? []), ...s.used])];
+    if (s.goal) sv.lastGoal = s.goal.id;
     writeSave(sv);
     const card: Btn = { x: 380, y: 106, w: 80, h: 18, text: "카드 저장", act: () => this.saveCard() };
     this.btns = s.daily
@@ -303,10 +305,10 @@ export class ResultScene {
       while (g.measureText(note).width > 150 && note.length > 6) note = note.slice(0, -2) + "…";
       g.fillText(note, 58, 234);
     }
-    if (s.goal && d.pass) {   // 오늘의 작은 목표: 해냈으면 별 도장
+    if (s.goal) {   // 오늘의 작은 목표: 해냈으면 별 도장 (D 등급이면 그 줄 오른쪽에 작게)
       const ok = goalDone(s);
-      g.font = KR(11); g.fillStyle = ok ? "#b8860b" : "#9a948a";
-      g.fillText(`${ok ? "★" : "☆"} 작은 목표 · ${s.goal.text}${ok ? " 달성!" : ""}`, 22, 249);
+      g.font = KR(d.pass ? 11 : 9); g.fillStyle = ok ? "#b8860b" : "#9a948a";
+      g.fillText(`${ok ? "★" : "☆"} 작은 목표 · ${s.goal.text}${ok ? " 달성!" : ""}`, d.pass ? 22 : 140, d.pass ? 249 : 251);
     }
     if (!d.pass) { g.font = KR(12); g.fillStyle = "#9c2d23"; g.fillText(s.replaced ? "민원 가득: 감독관 교체" : "D 등급: 다시 맡습니다", 22, 249); }
 

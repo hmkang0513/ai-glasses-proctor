@@ -17,6 +17,9 @@ export interface SaveData {
   mode: "fp" | "cctv";
   seenTutorial: boolean;
   lastComment?: string;   // 수석감독관 한마디 (같은 문장 연속 방지)
+  usedEver?: string[];    // 한 번이라도 써 본 도구 (작은 목표는 안 써 본 것부터)
+  lastGoal?: string;      // 직전 판 작은 목표
+  recentLines?: string[]; // 최근 교무실 대사 (3판 안 반복 금지)
 }
 
 const DEFAULT: SaveData = { level: 1, notebook: [], noteMissed: [], bestGrades: {}, attempts: {}, alumni: [], daily: {}, mode: "fp", seenTutorial: false };
@@ -36,6 +39,10 @@ export function loadSave(): SaveData {
       daily: d.daily && typeof d.daily === "object" ? d.daily : {},
       mode: d.mode === "cctv" ? "cctv" : "fp",
       seenTutorial: !!d.seenTutorial,
+      lastComment: typeof d.lastComment === "string" ? d.lastComment : undefined,
+      usedEver: Array.isArray(d.usedEver) ? d.usedEver.filter((x) => typeof x === "string") : [],
+      lastGoal: typeof d.lastGoal === "string" ? d.lastGoal : undefined,
+      recentLines: Array.isArray(d.recentLines) ? d.recentLines.slice(-3) : [],
     };
   } catch {
     return { ...DEFAULT };

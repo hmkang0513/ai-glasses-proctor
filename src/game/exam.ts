@@ -14,10 +14,11 @@ import { SPR_H, SPR_W, drawEmptySeat, drawProctor, drawStanding, drawStudent, dr
 import { COLX, ROOM_D, ROOM_W, ROWZ, isCheating, type Student } from "../world/student";
 import { drawCloseup } from "../ui/closeup";
 import { CHEAT_BY_ID } from "../data/cheats";
+import { GSTYLES } from "../world/glasses";
 import type { TouchButton } from "../core/input";
 import { play, toggleMute, type SoundKind } from "../core/audio";
 import { cctvGlitch, type Layer } from "../render/effects";
-import type { Session } from "./session";
+import { goalDone, type Session } from "./session";
 
 const SPX = 0.036;               // 스프라이트 1픽셀 = 0.036m
 const DOOR = { x: 9.4, z: 11.7 }; // 뒷문
@@ -61,6 +62,7 @@ export class ExamScene {
   penAt = 0;
   hitstopUntil = 0;
   askLeft = 1;
+  goalToasted = false;
   panelCloseAt = 0;                       // 적발 뒤 들킨 표정을 잠깐 보여 주고 닫음
   autoWalk = -1; autoWalkUntil = 0;       // 멀리서 F: 그 학생 옆까지 자동으로 걸어감
   panelOpens = 0;                         // 흐릿함 안내는 처음 3번만
@@ -121,7 +123,7 @@ export class ExamScene {
     }
     this.setupEvents();
     // 1교시 전 시계 확인 (실제 수능: 1·3교시 전에 시계를 책상 위에 두고 감독관이 확인)
-    if (s.period === 0 && s.room.level >= 4) this.pre = 12;
+    if (s.period === 0 && s.room.level >= 4) this.pre = s.room.level === 10 ? 18 : 12;   // 10회차는 앞 6초 열화상 시범
     if (this.pre > 0) this.mode = "fp";   // 시계 확인은 교실을 돌며 직접
     // 부감독 헛기침 힌트: 교시당 1번, 정확도 약 70%, 50회차부터 없음
     if (s.room.level <= 5) this.aideHintAt = s.room.level <= 3 ? 20 + r() * 10 : 35 + r() * 10;   // 초반: 일찍, 정확하게, 반복
@@ -431,6 +433,7 @@ export class ExamScene {
     if (this.ended) return;
     this.rt += dt;
     if (this.rt < this.hitstopUntil) return;   // 적발 순간 아주 잠깐 멈춤 (손맛)
+    if (this.s.goal && !this.goalToasted && this.s.goal.id !== "calm" && goalDone(this.s)) { this.goalToasted = true; this.toast(`★ 작은 목표 달성! ${this.s.goal.text}`, 3, COLORS.accent); play("page", 0, 1, false); }
     this.touchMemo = inp.touchMode;
     // 휴대폰: 화면 버튼 등록 (명부를 보는 중이면 터치는 닫기용)
     this.touchUi = inp.touchMode && !this.memoOpen ? this.buildTouchUi() : [];
@@ -484,6 +487,7 @@ export class ExamScene {
     // 정전 이벤트
     if (this.outageAt >= 0 && !this.outageDone && this.t >= this.outageAt && this.outageEnd < 0) {
       this.outageEnd = this.outageAt + 26;
+      if (!this.s.used.includes("outage")) this.s.used.push("outage");
       play("power", 0, 0.8);
       this.periodLen += 15; // 늦어진 만큼 시험 시간 연장
     }
@@ -728,7 +732,8 @@ export class ExamScene {
     }
     if (this.pre > 0) { this.checkWatch(st); return; }
     const overtimeCatch = this.collectT > 0 && st.overtime && st.status === "seated";
-    if (overtimeCatch && !st.cheat) st.cheat = CHEAT_BY_ID.overtime;   // 원래 무고했던 학생: 종료령 뒤 작성으로 적발
+    if (overtimeCatch && !st.cheat) st.cheat = CHEAT_BY_ID.overtime;
+    if (overtimeCatch && !this.s.used.includes("overtimeCatch")) this.s.used.push("overtimeCatch");   // 원래 무고했던 학생: 종료령 뒤 작성으로 적발
     const correct = isCheating(st);
     if (!correct && this.s.room.level <= 2 && !this.s.warningUsed) {
       this.s.warningUsed = true;
@@ -1040,7 +1045,7 @@ export class ExamScene {
   private renderHud(g: Ctx): void {
     const p = PERIODS[this.s.period];
     const remain = Math.max(0, this.periodLen - this.t);
-    const head = this.pre > 0 ? `시계 확인  08:${String(30 + Math.min(9, Math.floor((12 - this.pre) / 1.2))).padStart(2, "0")}` : `${p.name}  ${clockText(this.s.period, this.t)}`;
+    const head = this.pre > 0 ? `시계 확인  08:${String(30 + Math.max(0, Math.min(9, Math.floor((12 - this.pre) / 1.2)))).padStart(2, "0")}` : `${p.name}  ${clockText(this.s.period, this.t)}`;
     label(g, head, 6, 6, { font: KR(12) });
     if (this.s.period === 2 && this.t < 10) label(g, `듣기평가 ${Math.ceil(10 - this.t)}초 전 · 지켜볼 자리를 잡으세요 (Shift 까치발)`, 70, 112, { font: KR(12), color: COLORS.accent });
     if (this.listening()) {
@@ -1052,15 +1057,18 @@ export class ExamScene {
     }
     if (this.collectT > 0) label(g, `답안지 회수 중 ${Math.ceil(this.collectT)}초 · 아직 펜을 움직이는 학생이 있으면 관찰 후 F`, 50, 112, { font: KR(12), color: COLORS.accent });
     // 10회차 열화상 시범: 시계 확인 12초 동안 부감독 안경으로 뜨거움 → 식음을 보여 줌 (횟수 소모 없음)
-    if (this.pre > 0 && this.s.room.level === 10 && this.s.period === 0 && this.mode === "fp" && this.panel < 0) {
-      const base = this.students.find((x) => x.glasses) ?? this.students[0];
-      const touching = this.pre > 9, hotNow = this.pre > 5;
-      const demo: Student = { ...base, cheat: null, aiGen: 2, ledOn: false, status: "seated", outcome: base.outcome,
-        pose: touching ? "temple" : "write", heatUntil: hotNow ? this.t + 1 : this.t - 1, glasses: base.glasses };
+    const demoOn = this.pre > 12 && this.s.room.level === 10 && this.s.period === 0;
+    if (demoOn && this.mode === "fp" && this.panel < 0) {
+      // 부감독 외형(정장)으로: 학생과 헷갈리지 않게
+      const base = this.students[0];
+      const touching = this.pre > 16, hotNow = this.pre > 14;
+      const demo: Student = { ...base, cheat: null, aiGen: 2, ledOn: false, status: "seated", alumnus: null,
+        hair: "#2b2320", skin: "#e0b48e", shirt: "#39435a", longHair: false, glasses: GSTYLES[1], watch: "none",
+        pose: touching ? "temple" : "write", heatUntil: hotNow ? this.t + 1 : this.t - 1 };
       drawCloseup(g, demo, this.t, 10, 166, !touching, 0, false);
       label(g, touching ? "부감독 시범: 안경다리를 누릅니다" : hotNow ? "만진 직후 열화상(T) → 안경다리가 뜨겁다!" : "몇 초 지나면 식어서 안 보여요. 만진 직후 10초 안에 T!", 8, 150, { font: KR(12), color: hotNow ? COLORS.accent : COLORS.chalk });
     }
-    if (this.pre > 0) label(g, "학생들이 시계를 책상 위에 올려 둡니다 · 스마트워치는 관찰(E) 후 F로 보관", 40, 112, { font: KR(12), color: COLORS.accent });
+    if (this.pre > 0 && !demoOn) label(g, "학생들이 시계를 책상 위에 올려 둡니다 · 스마트워치는 관찰(E) 후 F로 보관", 40, 112, { font: KR(12), color: COLORS.accent });
     // 남은 시간 막대
     px(g, 6, 24, 100, 4, COLORS.line);
     const hurry = this.lastMinutes() && Math.floor(this.rt * 2) % 2 === 0;

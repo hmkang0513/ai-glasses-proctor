@@ -268,7 +268,7 @@ export function buildRoom(level: number, seed = level * 7919 + 13, alumnus: Alum
   const themes = ["hot", "cold", "rain", "tense"] as const;
   const theme = level >= 6 && roll < 0.3 ? themes[Math.floor(roll / 0.3 * themes.length)] : null;
   const calm = students.filter((s) => !s.cheat);
-  if (theme === "hot") { for (const s of calm) s.habits.push("drink", "drink"); notes.unshift("오늘은 더운 날입니다. 물 마시는 학생이 많아요."); }
+  if (theme === "hot") { for (const s of calm) s.habits.push("drink", "drink"); notes.unshift("난방이 세서 교실이 덥습니다. 물 마시는 학생이 많아요."); }
   if (theme === "cold") { for (const s of calm) s.habits.push("cough", "cough"); notes.unshift("감기가 유행입니다. 기침 소리가 잦아요."); }
   if (theme === "rain") notes.unshift("비가 옵니다. 교실이 조금 어둡습니다.");
   if (theme === "tense") {
