@@ -14,6 +14,7 @@ function colleagueLine(s: Session, d: ResultData): string {
   const rows: Array<[boolean, string]> = [
     [s.room.level === 1, "첫 감독 어땠어요? 저도 처음엔 다리가 후들거렸어요."],
     [s.replaced, "오늘은 민원이 많았죠? 커피 한잔하고 내일 다시 해요."],
+    [s.room.students.some((x) => x.alumnus?.clean && x.outcome !== "wrong"), "엽서 왔어요. 예전에 잡혔던 학생이래요. \"올해는 제 힘으로 시험 봤어요. 그때 고마웠습니다.\""],
     [perfect && firstT < 60, "벌써 찾으셨어요? 눈이 매섭다고 소문나겠는데요."],
     [!!fresh, fresh ? `${fresh.name}이요? 그런 것도 있군요. 수첩에 꼭 적어 두세요.` : ""],
     [perfect, "오늘 그 교실은 아무 일 없었다면서요? 깔끔하네요."],
