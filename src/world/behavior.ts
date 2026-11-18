@@ -13,6 +13,9 @@ export interface BehaviorCtx {
   dist: (s: Student) => number;
   /** 감독관이 이 학생 쪽을 보고 있는지 */
   watched: (s: Student) => boolean;
+  /** 학생이 감독관을 의식하는지 (앞에 있으면 시야, 등 뒤면 최근에 흘끗 본 경우만) */
+  noticed?: (s: Student) => boolean;
+  collecting?: boolean;   // 종료령 뒤 답안지 회수 중
   freezeRange: number;
   outage: boolean;
   lastMinutes: boolean;   // 종료 10분 전 (게임 설정: 부정행위자가 조급해짐)
@@ -29,7 +32,9 @@ export function updateStudent(s: Student, ctx: BehaviorCtx): void {
   const cheating = isCheating(s);
 
   // 감독관이 바로 옆에서 보고 있으면 부정행위를 멈춘다
-  const near = ctx.dist(s) < ctx.freezeRange && ctx.watched(s);
+  const near = ctx.dist(s) < ctx.freezeRange && (ctx.noticed ? ctx.noticed(s) : ctx.watched(s));
+  // 종료령 뒤: 모두 펜을 내려놓음. 종료 후 답안을 쓰는 학생만 계속 씀
+  if (ctx.collecting) { s.acting = false; s.habitPose = null; s.pose = s.cheat?.id === "overtime" ? "burst" : "stare"; return; }
   if (cheating && s.acting && near) {
     s.acting = false;
     s.pose = "write";

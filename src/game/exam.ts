@@ -54,6 +54,9 @@ export class ExamScene {
   prevActing: boolean[] = [];
   lastAct: number[] = [];                 // 학생별 마지막 부정행위 동작 시각
   glanceRoll: boolean[] = [];              // 이번 흘끗에서 움찔할지
+  lastGlance: number[] = [];               // 학생별 마지막 흘끗 시각
+  collectT = 0;                            // 종료령 뒤 답안지 회수 남은 시간
+  collectDone = false;
   radioCharges = 2;
   radioUntil = -1;
   radioExplained = false;
@@ -210,7 +213,7 @@ export class ExamScene {
     // 눈 마주침: 2~3m에서 조준 중일 때만 (2m 안은 원래 멈추고, 3m 밖은 단서가 보이는 거리)
     const aimed = (this.target === st.i || this.panel === st.i) && this.mode === "fp" && this.dist(st) < 3 && this.s.room.level > 1;
     const glancing = st.pose === "glance";
-    if (glancing && prev !== "glance") this.glanceRoll[st.i] = this.s.r() < 0.6;   // 흘끗 한 번에 한 번만 판정
+    if (glancing && prev !== "glance") { this.glanceRoll[st.i] = this.s.r() < 0.6; this.lastGlance[st.i] = this.t; }   // 흘끗 한 번에 한 번만 판정
     const late = this.s.room.level >= 50;                                             // 50회차부터 굳는 시간이 겹침
     if (aimed && glancing && this.glanceRoll[st.i] && isCheating(st)) {
       // 부정행위자: 급히 고개를 숙이고 손이 굳음
@@ -304,6 +307,13 @@ export class ExamScene {
     return Math.hypot(st.x - this.cam.x, st.z - this.cam.z);
   }
 
+  /** 학생이 감독관을 의식하는지: 감독관이 앞(칠판 쪽)에 있으면 시야 안, 등 뒤면 최근 5초 안에 흘끗 돌아본 경우만 */
+  noticed(st: Student): boolean {
+    if (!this.watched(st)) return false;
+    if (this.cam.z <= st.z) return true;
+    return this.t - (this.lastGlance[st.i] ?? -99) < 5;
+  }
+
   /** 감독관이 이 학생 쪽을 보고 있는지 (시야 ±35°, 7m 이내) */
   /** 부감독(뒷문 옆, 교실 앞쪽을 봄)이 지켜보는 범위: 뒤쪽 두 줄(11~20번). 앞쪽 두 줄은 정감독(플레이어) 몫 */
   aideSees(st: Student): boolean {
@@ -391,6 +401,8 @@ export class ExamScene {
       t: this.t, dt, r: this.s.r, level: this.s.room.level,
       dist: (st: Student) => this.dist(st),
       watched: (st: Student) => this.watched(st),
+      noticed: (st: Student) => this.noticed(st),
+      collecting: this.collectT > 0,
       freezeRange: this.mode === "cctv" ? 3.3 : this.tiptoe ? 1.4 : FREEZE_RANGE, outage: this.outage(), lastMinutes: this.lastMinutes(),
     };
     for (const st of this.students) {
@@ -413,7 +425,25 @@ export class ExamScene {
     }
 
     if (this.endAt > 0 && this.t >= this.endAt) this.finish(this.pendingReason);
-    if (this.t >= this.periodLen) this.finish("time");
+    if (this.t >= this.periodLen) {
+      // 종료령 → 답안지 회수 (5회차부터). 35% 확률로 펜을 내려놓지 않는 학생이 있다
+      if (!this.collectDone && this.s.room.level >= 5 && !this.ended) {
+        if (this.collectT <= 0) {
+          this.collectT = 12; this.collectDone = true;
+          this.toast("종료령이 울렸습니다. 필기구를 내려놓으세요 · 답안지를 회수합니다", 3, COLORS.accent);
+          if (this.s.r() < 0.35) {
+            const seated = this.students.filter((x) => x.status === "seated");
+            const pool = seated.filter((x) => x.cheat).length && this.s.r() < 0.6 ? seated.filter((x) => x.cheat) : seated;
+            const st = pool[Math.floor(this.s.r() * pool.length)];
+            if (st) st.cheat = CHEAT_BY_ID.overtime;   // 이 학생만 계속 씀
+          }
+        }
+      } else if (this.collectT <= 0) this.finish("time");   // 회수 중에는 끝내지 않음
+    }
+    if (this.collectT > 0) {
+      this.collectT -= dt;
+      if (this.collectT <= 0) this.finish("time");
+    }
   }
 
   /** 3교시 앞부분: 영어 듣기평가 방송 중 */
@@ -741,10 +771,11 @@ export class ExamScene {
     if (this.panel >= 0) {
       const st = this.students[this.panel];
       const blur = Math.max(0, Math.min(1, (this.dist(st) - 3) / 1.2));   // 3m보다 멀면 흐릿
-      drawCloseup(g, st, this.t, 10, 166, this.t < this.thermalUntil, blur);
+      const behind = this.cam.z > st.z + 0.15;   // 뒤에서 보면 어깨 너머 관찰
+      drawCloseup(g, st, this.t, 10, 166, this.t < this.thermalUntil, blur, behind);
       if (blur > 0) label(g, "멀어서 흐릿합니다 · 조금 더 다가가세요", 14, 248, { font: KR(11), color: COLORS.accent });
       if (this.t < this.radioUntil) this.drawRadio(g, st);
-      label(g, `${st.seat}번 관찰 중 · T 열화상 ${this.thermalCharges}회${this.s.room.level >= 16 ? ` · R 전파 ${this.radioCharges}회` : ""}`, 8, 150, { font: KR(12), bg: "none", color: COLORS.chalk });
+      label(g, `${st.seat}번 ${this.cam.z > st.z + 0.15 ? "어깨 너머 " : ""}관찰 중 · T 열화상 ${this.thermalCharges}회${this.s.room.level >= 16 ? ` · R 전파 ${this.radioCharges}회` : ""}`, 8, 150, { font: KR(12), bg: "none", color: COLORS.chalk });
     }
   }
 
@@ -793,6 +824,7 @@ export class ExamScene {
       g.fillText(lines[0], 20, H - 53); g.fillText(lines[1], 20, H - 34);
       label(g, `듣기평가 ${Math.ceil(10 + LISTENING_SECONDS - this.t)}초`, 110, 20, { font: KR(11), color: COLORS.accent });
     }
+    if (this.collectT > 0) label(g, `답안지 회수 중 ${Math.ceil(this.collectT)}초 · 아직 펜을 움직이는 학생이 있으면 관찰 후 F`, 50, 112, { font: KR(12), color: COLORS.accent });
     if (this.pre > 0) label(g, "학생들이 시계를 책상 위에 올려 둡니다 · 스마트워치는 관찰(E) 후 F로 보관", 40, 112, { font: KR(12), color: COLORS.accent });
     // 남은 시간 막대
     px(g, 6, 24, 100, 4, COLORS.line);

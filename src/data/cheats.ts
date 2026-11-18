@@ -229,6 +229,12 @@ export const CHEATS: CheatMethod[] = [
     hint: "AI 안경으로 찍은 시험지가 밖으로 유출돼 홍보물로 쓰였습니다.",
     source: "호주 대학 2026", url: "https://www.timeshighereducation.com/news/checkmate-looms-traditional-tests-amid-ai-glasses-epidemic",
   },
+  {
+    id: "overtime", no: 31, name: "종료령 뒤 답안 작성", family: "signal", minLevel: 5, kind: "event",
+    loop: [{ pose: "burst", dur: 1 }], interval: [0, 0], tells: {}, gate: {},
+    hint: "종료령이 울린 뒤에도 펜을 내려놓지 않고 답안을 계속 썼습니다. 수능에서는 종료령 뒤 답안 작성·수정도 부정행위입니다.",
+    source: "수능 유의사항: 종료령 뒤 답안 작성은 부정행위(뉴시스)", url: "https://www.newsis.com/view/NISX20241113_0002957998",
+  },
 ];
 
 export const CHEAT_BY_ID: Record<string, CheatMethod> = Object.fromEntries(CHEATS.map((c) => [c.id, c]));

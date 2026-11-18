@@ -64,6 +64,34 @@ function thermal(g: Ctx, s: Student, t: number): void {
   g.putImageData(img, 0, 0);
 }
 
+/** 뒤에서 본 머리·어깨: 귀 뒤 이어폰, 목 뒤 송수신기, 두꺼운 안경다리가 보이고 얼굴 단서(LED·입술)는 안 보임 */
+function drawFaceBack(g: Ctx, s: Student, t: number): void {
+  const cheat = isCheating(s) ? s.cheat : null;
+  px(g, 0, 0, 64, 64, "#2b3240");
+  px(g, 4, 48, 56, 16, s.shirt === "#e4e4ea" ? "#2f3e63" : s.shirt);              // 어깨·등
+  px(g, 22, 46, 20, 4, "#e4e4ea");                                                  // 옷깃
+  px(g, 24, 38, 16, 10, s.skin);                                                    // 목덜미
+  px(g, 14, 8, 36, s.longHair ? 40 : 32, s.hair);                                  // 뒤통수
+  px(g, 10, 22, 4, 10, s.skin); px(g, 50, 22, 4, 10, s.skin);                      // 귀 (뒤에서)
+  const look = s.pose === "glance" ? 1 : 0;
+  if (look) { px(g, 48, 18, 6, 14, s.skin); px(g, 51, 23, 2, 2, "#2a1d16"); }      // 돌아보는 옆얼굴
+  // 안경다리가 귀에 걸린 모습: 1세대 AI 안경은 두껍다
+  if (s.glasses && s.pose !== "glassesoff") {
+    const c = s.glasses.color === "#d9d3c7" ? "#8a8478" : s.glasses.color;
+    const th = s.aiGen === 1 ? 3 : 1;
+    px(g, 8, 22, 6, th, c); px(g, 50, 22, 6, th, c);
+  }
+  // 귀 뒤 이어폰: 뒤에서 보면 귓바퀴 뒤에 작게 튀어나옴
+  if (cheat?.tells.earpiece) { px(g, 53, 27, 2, 3, "#c99a7a"); px(g, 9, 27, 1, 2, "#c99a7a"); }
+  // 목 뒤 송수신기: 머리카락 아래로 늘 조금 보임
+  if (cheat?.tells.neckDevice) px(g, 29, 38, 6, 4, "#2a2a2a");
+  // 손이 머리 쪽으로
+  if (s.pose === "temple") px(g, 52, 16, 8, 10, s.skin);
+  if (s.pose === "ear") px(g, 4, 22, 8, 10, s.skin);
+  if (s.pose === "neck") px(g, 30, 34, 10, 8, s.skin);
+  if (s.pose === "nod" && Math.floor(t * 4) % 2) px(g, 14, 8, 36, 2, "#2b3240");     // 끄덕임
+}
+
 function drawHands(g: Ctx, s: Student, t: number): void {
   const pose = s.pose;
   const cheat = isCheating(s) ? s.cheat : null;
@@ -139,12 +167,22 @@ function drawHands(g: Ctx, s: Student, t: number): void {
 const [lowC, lg] = makeCanvas(24, 24);
 
 /** blur 0~1: 멀수록 흐릿 (거리 줄타기) */
-export function drawCloseup(g: Ctx, s: Student, t: number, x: number, y: number, thermalOn: boolean, blur = 0): void {
+export function drawCloseup(g: Ctx, s: Student, t: number, x: number, y: number, thermalOn: boolean, blur = 0, behind = false): void {
   fg.clearRect(0, 0, 64, 64);
-  drawFace(fg, s, t);
+  if (behind) drawFaceBack(fg, s, t);
+  else drawFace(fg, s, t);
   if (thermalOn) thermal(fg, s, t);
   hg.clearRect(0, 0, 64, 64);
   drawHands(hg, s, t);
+  if (behind) {
+    // 어깨 너머로는 무릎 위가 보인다: 책상 밑 휴대폰 화면, 허벅지 메모
+    const ch = isCheating(s) ? s.cheat : null;
+    if (s.pose === "underdesk") {
+      px(hg, 10, 50, 44, 14, "#3b4660");                                             // 무릎
+      if (ch?.family === "phone") { px(hg, 24, 52, 14, 10, "#111"); px(hg, 25, 53, 12, 8, "#7fc8ff"); px(hg, 27, 55, 8, 1, "#e8f4ff"); }
+    }
+    if (s.pose === "sleeve" && ch?.tells.armNote) { px(hg, 8, 52, 20, 10, "#3b4660"); px(hg, 10, 55, 14, 1, "#e9e6da"); px(hg, 10, 58, 10, 1, "#e9e6da"); }
+  }
   px(g, x - 3, y - 15, 2 * 96 + 10, 96 + 18, "rgba(16,22,20,0.94)");
   g.imageSmoothingEnabled = false;
   for (const [c, ox] of [[faceC, 0], [handC, 100]] as const) {
