@@ -26,6 +26,8 @@ export interface Session {
   replaced: boolean;         // 민원 가득 → 감독 교체
   aideHintSeats: number[];   // 부감독 헛기침 힌트가 가리킨 자리
   marked: number[];          // 플레이어가 의심 표시(Z)한 자리
+  used: string[];            // 이번 판에 써 본 도구 (thermal·cctv·tiptoe·radio·ask)
+  goal: { id: string; text: string } | null;   // 오늘의 작은 목표 (선택, 점수와 무관)
   seenClues: Array<{ seat: number; period: number; text: string }>;   // 관찰 중 본 단서 문구 (쉬는 시간 돌아보기)
   path: Array<[number, number, number]>;   // 감독관 동선 [교시, x, z] (0.5초마다)
   acts: Array<{ seat: number; period: number; t: number; near: boolean }>;   // 부정행위 동작 시작 순간
@@ -55,6 +57,29 @@ export function newSession(save: SaveData, levelOverride?: number, attempt = 0, 
     room, save, r: makeRng(room.seed ^ 0x5eed),
     period: 0, complaints: 0, warningUsed: false,
     catches: [], gateHeld: [], gateEjected: [], gateWrong: [], smuggled: [],
-    replaced: false, aideHintSeats: [], marked: [], seenClues: [], path: [], acts: [], daily, startedAt: performance.now(),
+    replaced: false, aideHintSeats: [], marked: [], used: [], goal: pickGoal(level, room.seed), seenClues: [], path: [], acts: [], daily, startedAt: performance.now(),
   };
+}
+
+/** 오늘의 작은 목표: 새 도구를 한 번씩 써 보게 하는 부드러운 안내 (못 해도 불이익 없음) */
+export function pickGoal(level: number, seed: number): { id: string; text: string } | null {
+  if (level < 3) return null;
+  const list: Array<[string, string, number]> = [
+    ["back", "뒤쪽 줄까지 한 바퀴 돌기", 3], ["calm", "민원 없이 끝내기", 3], ["mark", "Z로 의심 표시 해 보기", 3],
+    ["cctv", "Tab으로 CCTV 화면 한 번 보기", 3], ["thermal", "열화상(T) 한 번 써 보기", 6], ["tiptoe", "Shift 까치발로 걸어 보기", 5],
+    ["ask", "H로 부감독에게 물어보기", 3], ["radio", "전파 탐지기(R) 써 보기", 16],
+  ];
+  const ok = list.filter((g) => level >= g[2]);
+  const g = ok[Math.abs(seed * 31 + level * 7) % ok.length];
+  return { id: g[0], text: g[1] };
+}
+
+/** 작은 목표를 해냈는지 */
+export function goalDone(s: Session): boolean {
+  const g = s.goal;
+  if (!g) return false;
+  if (g.id === "back") return s.path.some(([, , z]) => z > 9.2);
+  if (g.id === "calm") return s.complaints === 0 && !s.replaced;
+  if (g.id === "mark") return s.marked.length > 0;
+  return s.used.includes(g.id);
 }

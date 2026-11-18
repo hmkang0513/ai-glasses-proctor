@@ -6,7 +6,7 @@ import { CHEAT_BY_ID } from "../data/cheats";
 import { EXAM_SECONDS, SCORE } from "../data/rules";
 import type { Pose } from "../world/poses";
 import type { Student } from "../world/student";
-import type { Session } from "./session";
+import { goalDone, type Session } from "./session";
 
 const HABIT_NAME: Partial<Record<Pose, string>> = {
   nosepush: "코받침을 밀어 올리는 습관", glassesoff: "안경을 벗어 렌즈를 닦는 습관", lookaround: "목을 풀며 두리번거리는 습관",
@@ -302,6 +302,11 @@ export class ResultScene {
       let note = `수첩 · ${first}${d.newNotes.length > 1 ? ` 외 ${d.newNotes.length - 1}` : ""}`;
       while (g.measureText(note).width > 150 && note.length > 6) note = note.slice(0, -2) + "…";
       g.fillText(note, 58, 234);
+    }
+    if (s.goal && d.pass) {   // 오늘의 작은 목표: 해냈으면 별 도장
+      const ok = goalDone(s);
+      g.font = KR(11); g.fillStyle = ok ? "#b8860b" : "#9a948a";
+      g.fillText(`${ok ? "★" : "☆"} 작은 목표 · ${s.goal.text}${ok ? " 달성!" : ""}`, 22, 249);
     }
     if (!d.pass) { g.font = KR(12); g.fillStyle = "#9c2d23"; g.fillText(s.replaced ? "민원 가득: 감독관 교체" : "D 등급: 다시 맡습니다", 22, 249); }
 

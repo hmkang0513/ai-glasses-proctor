@@ -467,6 +467,7 @@ export class ExamScene {
     this.t += dt;
     if (inp.hit("Tab")) {
       this.mode = this.mode === "fp" ? "cctv" : "fp";
+      if (!this.s.used.includes("cctv")) this.s.used.push("cctv"); 
       if (this.mode === "cctv") { this.cam.x = 5; this.cam.z = 0.95; this.cam.yaw = 0; }   // 교탁 앞 모니터로 이동
       this.glitch = cctvGlitch();
       this.s.save.mode = this.mode;
@@ -580,6 +581,7 @@ export class ExamScene {
     this.moving = len > 0;
     if (len > 0) {
       this.tiptoe = inp.isDown("ShiftLeft") || inp.isDown("ShiftRight");
+      if (this.tiptoe) { if (!this.s.used.includes("tiptoe")) this.s.used.push("tiptoe"); }
       const step = ((this.tiptoe ? WALK * 0.45 : WALK) * dt) / len;
       this.tryMove(this.cam.x + mx * step, this.cam.z);
       this.tryMove(this.cam.x, this.cam.z + mz * step);
@@ -604,7 +606,7 @@ export class ExamScene {
     if (inp.hit("KeyH")) {
       if (this.askLeft <= 0) this.toast("부감독: 이번 교시엔 더 드릴 말씀이 없어요", 2);
       else {
-        this.askLeft--;
+        this.askLeft--; if (!this.s.used.includes("ask")) this.s.used.push("ask"); 
         const left = this.students.filter((x) => isCheating(x));
         if (!left.length) this.toast("부감독: 제 쪽에서는 이상한 게 안 보여요", 3, COLORS.accent);
         else {
@@ -642,7 +644,7 @@ export class ExamScene {
       if (this.pre > 0) this.toast("시계 확인 시간에는 열화상을 쓰지 않습니다", 2);
       else if (this.panel < 0) this.toast("열화상은 관찰(E) 중에만 쓸 수 있습니다", 2);
       else if (this.thermalCharges <= 0) this.toast("이번 교시 열화상 횟수를 다 썼습니다", 2);
-      else { this.thermalCharges--; this.thermalUntil = this.t + 3; }
+      else { this.thermalCharges--; this.thermalUntil = this.t + 3; if (!this.s.used.includes("thermal")) this.s.used.push("thermal"); }
     }
     // R: 전파 탐지기 (16회차부터 지급, 교시당 2회)
     if (inp.hit("KeyR")) {
@@ -651,7 +653,7 @@ export class ExamScene {
       else if (this.panel < 0) this.toast("전파 탐지기는 관찰(E) 중에만 쓸 수 있습니다", 2);
       else if (this.radioCharges <= 0) this.toast("이번 교시 전파 탐지기 횟수를 다 썼습니다", 2);
       else {
-        this.radioCharges--; this.radioUntil = this.t + 3;
+        this.radioCharges--; this.radioUntil = this.t + 3; if (!this.s.used.includes("radio")) this.s.used.push("radio"); 
         if (!this.radioExplained) { this.radioExplained = true; this.toast("바늘이 빨간 영역이면 근처 무선 기기가 송신 중입니다. 가끔 다른 기기 잡음도 있습니다", 4); }
       }
     }
@@ -828,6 +830,7 @@ export class ExamScene {
 
   notebookPages(): string[] {
     const lines = ["감독 명부 · " + `${this.s.room.school} 제${this.s.room.roomNo}시험실`];
+    if (this.s.goal) lines.push(`오늘의 작은 목표(선택): ${this.s.goal.text} · 해내면 결과에 별 도장`);
     if (this.s.room.tutorial.length) lines.push(...this.s.room.tutorial.slice(1));
     lines.push(...this.s.room.notes);
     lines.push(`조작: WASD 이동(Shift 까치발) · 마우스 시선 · E 관찰 · F 적발 · T 열화상${this.s.room.level >= 16 ? " · R 전파 탐지" : ""} · Tab CCTV · Q 명부 · M 소리 · C 소리 자막`);
