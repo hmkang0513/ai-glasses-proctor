@@ -31,7 +31,11 @@ export const HEAT_SECONDS = 10;        // AI 안경 작동 후 테가 뜨거운 
 export const PERIODS = [
   { name: "1교시 국어", start: 8 * 60 + 40, end: 10 * 60 },        // 80분
   { name: "2교시 수학", start: 10 * 60 + 30, end: 12 * 60 + 10 },  // 100분
+  { name: "3교시 영어", start: 13 * 60 + 10, end: 14 * 60 + 20 },  // 70분, 앞 25분은 듣기평가
 ] as const;
+
+export const LISTENING_SECONDS = 40;   // 3교시 듣기평가 (게임 시간)
+export const LUNCH_LABEL = "점심시간 12:10~13:00";
 
 export const BREAK_LABEL = "쉬는 시간 10:00~10:30";
 

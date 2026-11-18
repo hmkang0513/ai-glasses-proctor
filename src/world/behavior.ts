@@ -42,6 +42,11 @@ export function updateStudent(s: Student, ctx: BehaviorCtx): void {
     const loop = s.cheat!.loop;
     if (s.acting) {
       s.stepT += dt;
+      if (s.loopIdx < 0) {                 // 0단계: 감독관 쪽을 흘끗 보고 나서 시작
+        s.pose = "glance";
+        if (s.stepT >= 0.7) { s.loopIdx = 0; s.stepT = 0; }
+        return;
+      }
       const step = loop[s.loopIdx];
       s.pose = step.pose;
       if (s.stepT >= step.dur) {
@@ -65,9 +70,9 @@ export function updateStudent(s: Student, ctx: BehaviorCtx): void {
     }
     if (t >= s.nextCheatAt && !near && !s.habitPose) {
       s.acting = true;
-      s.loopIdx = 0;
+      s.loopIdx = -1;                      // 흘끗 보기부터
       s.stepT = 0;
-      s.pose = loop[0].pose;
+      s.pose = "glance";
       return;
     }
   }

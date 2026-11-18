@@ -2,6 +2,7 @@
 import { COLORS, H, KR, PIX, W, label, makeCanvas, px, wrapText, type Ctx } from "../core/px";
 import type { Input } from "../core/input";
 import {
+  LISTENING_SECONDS,
   ACCUSE_RANGE, COMPLAINT_MAX, END_WHEN_ALL_CAUGHT, EXAM_SECONDS, FREEZE_RANGE, OBSERVE_RANGE,
   PERIODS, STARE_COMPLAINT_SEC, THERMAL_CHARGES, clockText,
 } from "../data/rules";
@@ -56,6 +57,8 @@ export class ExamScene {
   radioUntil = -1;
   radioExplained = false;
   touchUi: TouchButton[] = [];   // 휴대폰 화면 버튼
+  captions: Array<{ text: string; a: number; until: number }> = [];   // 소리 자막
+  captionsOn = true;
   stick: Input["stick"] = null;
   pre = 0;                       // 1교시 전 시계 확인 남은 시간             // 0 = 명부, 1~ = 감독관 수첩 메모
   ended = false;
@@ -144,6 +147,20 @@ export class ExamScene {
     return list.map(([code, label], k) => ({ code, label, x: 404 + (k % 2) * 38, y: 146 + Math.floor(k / 2) * 30, w: 34, h: 26 }));
   }
 
+  /** 소리 자막: 들린 방향 쪽 화면 가장자리에 화살표와 이름 */
+  private renderCaptions(g: Ctx): void {
+    this.captions = this.captions.filter((c) => c.until > this.rt);
+    this.captions.slice(-4).forEach((c, n) => {
+      const behind = Math.abs(c.a) > Math.PI / 2;
+      const arrow = behind ? "▼" : c.a < -0.25 ? "◀" : c.a > 0.25 ? "▶" : "▲";
+      const text = `${arrow} ${c.text}${behind ? " (뒤)" : ""}`;
+      g.font = KR(11);
+      const tw = Math.ceil(g.measureText(text).width) + 8;
+      const x = behind ? W / 2 - tw / 2 : Math.max(6, Math.min(W - tw - 6, W / 2 + Math.sin(c.a) * 190 - tw / 2));
+      label(g, text, Math.round(x), (behind ? 220 : 64) - n * 15, { font: KR(11), color: "#cfe3ff" });
+    });
+  }
+
   private renderTouchUi(g: Ctx): void {
     for (const b of this.touchUi) {
       px(g, b.x, b.y, b.w, b.h, "rgba(16,22,20,0.75)");
@@ -175,9 +192,12 @@ export class ExamScene {
     const dx = st.x - this.cam.x, dz = st.z - this.cam.z;
     let a = Math.atan2(dx, dz) - this.cam.yaw;
     a = Math.atan2(Math.sin(a), Math.cos(a));
-    const range = kind === "buzz" || kind === "hum" ? 4 : kind === "whisper" ? 3.2 : 11;   // 진동은 4m 안에서만
+    const range = kind === "buzz" || kind === "hum" ? 4 : kind === "whisper" ? (this.listening() ? 5 : 3.2) : 11;   // 진동은 4m 안, 듣기평가 중엔 이어폰 소리가 더 멀리
     const vol = base * Math.max(0, 1 - Math.hypot(dx, dz) / range);
     play(kind, Math.sin(a), vol, Math.abs(a) > Math.PI / 2);
+    // 자막: 진동음(진동·다리 떨기 같은 이름), 딸깍, 기침, 작은 말소리만
+    const names: Partial<Record<SoundKind, string>> = { buzz: "진동음", hum: "진동음", click: "딸깍", cough: "기침", whisper: "작은 말소리" };
+    if (this.captionsOn && names[kind] && vol > 0.08) this.captions.push({ text: names[kind]!, a, until: this.rt + 1.6 });
   }
 
   /** 동작이 바뀔 때 나는 소리 단서 */
@@ -185,9 +205,16 @@ export class ExamScene {
     // 부정행위 동작이 시작된 순간 기록 (결과 화면 "그때 무슨 일이")
     if (st.acting && !this.prevActing[st.i] && isCheating(st))
       this.s.acts.push({ seat: st.seat, period: this.s.period, t: this.t, near: this.mode === "fp" && this.dist(st) < OBSERVE_RANGE && this.watched(st) });
-    if (st.habitPose === "glance" && isCheating(st) && (this.target === st.i || this.panel === st.i) && this.mode === "fp") {
+    const aimed = (this.target === st.i || this.panel === st.i) && this.mode === "fp";
+    const glancing = st.pose === "glance";
+    if (aimed && glancing && isCheating(st)) {
+      // 부정행위자: 급히 고개를 숙이고 4초 동안 손이 굳음
+      st.acting = false; st.loopIdx = 0;
+      st.habitPose = "flinch"; st.pose = "flinch"; st.habitT = 4;
+      st.nextCheatAt = Math.max(st.nextCheatAt, this.t + 5);
+    } else if (aimed && glancing && st.timid && st.habitPose === "glance") {
+      // 소심한 무고 학생: 움찔했다가 바로 다시 필기
       st.habitPose = "flinch"; st.pose = "flinch"; st.habitT = 0.6;
-      st.nextCheatAt = Math.max(st.nextCheatAt, this.t + 4);   // 들켰다 싶어 잠시 몸을 사림
     }
     this.prevActing[st.i] = st.acting;
     if (st.acting) this.lastAct[st.i] = this.t;
@@ -302,6 +329,7 @@ export class ExamScene {
     this.stick = inp.stick;
     if (this.glitch) { this.glitch.update(dt); if (this.glitch.fx.done()) this.glitch = null; }
     if (inp.hit("KeyM")) this.toast(toggleMute() ? "소리 끔" : "소리 켬", 1.5);
+    if (inp.hit("KeyC")) { this.captionsOn = !this.captionsOn; this.toast(this.captionsOn ? "소리 자막 켬" : "소리 자막 끔", 1.5); }
     if (inp.hit("KeyQ")) {
       this.memoOpen = !this.memoOpen;
       if (this.memoOpen) { this.memoPages = this.notebookPages(); this.memoPage = 0; }
@@ -383,6 +411,13 @@ export class ExamScene {
     if (this.t >= this.periodLen) this.finish("time");
   }
 
+  /** 3교시 앞부분: 영어 듣기평가 방송 중 */
+  listening(): boolean {
+    return this.s.period === 2 && this.t < LISTENING_SECONDS;
+  }
+  walkNoise = 0;
+  lastStepComplaint = -99;
+
   private updateFp(dt: number, inp: Input): void {
     if (inp.clicked && !inp.locked) inp.requestLock();
     this.cam.yaw += inp.mouseDX * TURN;
@@ -402,6 +437,14 @@ export class ExamScene {
       this.tryMove(this.cam.x, this.cam.z + mz * step);
     }
     this.cam.y = 1.55 + (this.moving ? Math.sin(this.t * 9) * 0.012 : 0);
+    // 듣기평가 중 걸으면 발소리 (게임 설정: 실제 이동 금지 규정은 확인 못 함)
+    if (this.listening() && this.moving) {
+      this.walkNoise += dt;
+      if (this.walkNoise > 1.5 && this.t - this.lastStepComplaint > 6) {
+        this.lastStepComplaint = this.t; this.walkNoise = 0;
+        this.addComplaint(0.5, "듣기평가 중 발소리가 시끄럽다는 민원");
+      }
+    } else this.walkNoise = Math.max(0, this.walkNoise - dt * 0.5);
 
     // 조준점에 걸린 학생
     this.target = this.pickTarget();
@@ -547,9 +590,11 @@ export class ExamScene {
     let sig = 0.12 + 0.08 * Math.sin(this.t * 7);
     for (const o of this.students) {
       if (o.status !== "seated" || Math.hypot(o.x - st.x, o.z - st.z) > 1.5) continue;
-      if (this.transmitting(o)) sig = Math.max(sig, (o === st ? 0.75 : 0.55) + 0.2 * Math.sin(this.t * 13));
+      if (this.transmitting(o)) sig = Math.max(sig, 0.8 + 0.18 * Math.sin(this.t * 13));   // 옆 학생 기기도 같은 세기 → 1.5m 안 누구인지는 행동으로
     }
-    if (Math.floor(this.t * 2 + st.i) % 9 === 0) sig = Math.max(sig, 0.45);   // 다른 전자기기 잡음
+    const tick = Math.floor(this.t * 2 + st.i);
+    if (tick % 9 === 0) sig = Math.max(sig, 0.45);   // 다른 전자기기 잡음
+    if (tick % 31 === 0) sig = Math.max(sig, 0.88);  // 가끔은 잡음도 빨강까지
     return Math.min(1, sig);
   }
 
@@ -590,7 +635,7 @@ export class ExamScene {
     const lines = ["감독 명부 · " + `${this.s.room.school} 제${this.s.room.roomNo}시험실`];
     if (this.s.room.tutorial.length) lines.push(...this.s.room.tutorial.slice(1));
     lines.push(...this.s.room.notes);
-    lines.push(`조작: WASD 이동 · 마우스 시선 · E 관찰 · F 적발 · T 열화상${this.s.room.level >= 16 ? " · R 전파 탐지" : ""} · Tab CCTV · Q 명부 · M 소리`);
+    lines.push(`조작: WASD 이동 · 마우스 시선 · E 관찰 · F 적발 · T 열화상${this.s.room.level >= 16 ? " · R 전파 탐지" : ""} · Tab CCTV · Q 명부 · M 소리 · C 소리 자막`);
     return lines;
   }
 
@@ -600,6 +645,7 @@ export class ExamScene {
     else this.renderCctv(g);
     if (this.glitch) this.glitch.draw(g);
     this.renderHud(g);
+    this.renderCaptions(g);
     this.renderTouchUi(g);
     if (this.memoOpen) this.renderMemo(g);
   }
@@ -729,6 +775,13 @@ export class ExamScene {
     const remain = Math.max(0, this.periodLen - this.t);
     const head = this.pre > 0 ? `시계 확인  08:${String(30 + Math.min(9, Math.floor((12 - this.pre) / 1.2))).padStart(2, "0")}` : `${p.name}  ${clockText(this.s.period, this.t)}`;
     label(g, head, 6, 6, { font: KR(12) });
+    if (this.listening()) {
+      const lines = ["[방송] 지금부터 영어 듣기평가를 시작합니다.", "감독관은 듣기평가 동안 이동을 자제해 주십시오."];
+      px(g, 10, H - 58, 330, 44, "rgba(16,22,20,0.92)"); px(g, 10, H - 58, 3, 44, COLORS.accent);
+      g.font = KR(13); g.textBaseline = "top"; g.fillStyle = COLORS.chalk;
+      g.fillText(lines[0], 20, H - 53); g.fillText(lines[1], 20, H - 34);
+      label(g, `듣기평가 ${Math.ceil(LISTENING_SECONDS - this.t)}초`, 110, 20, { font: KR(11), color: COLORS.accent });
+    }
     if (this.pre > 0) label(g, "학생들이 시계를 책상 위에 올려 둡니다 · 스마트워치는 관찰(E) 후 F로 보관", 40, 112, { font: KR(12), color: COLORS.accent });
     // 남은 시간 막대
     px(g, 6, 24, 100, 4, COLORS.line);
@@ -813,7 +866,8 @@ export class ExamScene {
       for (const line of wrapText(g, c.hint, w - 56)) { g.fillText(line, x + 42, yy); yy += 18; }
       yy += 8;
       g.font = KR(12); g.fillStyle = "#7d776b";
-      for (const line of wrapText(g, `실제 사례: ${c.source}`, w - 56)) { g.fillText(line, x + 42, yy); yy += 16; }
+      const kindText = c.url ? `실제 사례: ${c.source}` : c.source.includes("게임 설정") ? "게임에서 지어낸 수법입니다 (실제 사례 없음)" : "널리 알려진 수법 (특정 사건 출처 미확인)";
+      for (const line of wrapText(g, kindText, w - 56)) { g.fillText(line, x + 42, yy); yy += 16; }
       if (c.url) {
         // 신문 스크랩처럼 출처 주소를 붙여 둠
         yy += 4;

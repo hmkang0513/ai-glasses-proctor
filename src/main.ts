@@ -48,17 +48,17 @@ function startSession(levelOverride?: number, daily = false): void {
   else startPeriod(0);
 }
 
-function startPeriod(p: 0 | 1): void {
+function startPeriod(p: 0 | 1 | 2): void {
   const s = session!;
   s.period = p;
   const exam: ExamScene = new ExamScene(s, () => {
     writeSave(save);
-    if (s.replaced || p === 1 || s.room.periods === 1) showResult();
-    else { input.releaseLock(); scene = new BreakScene(s, () => startPeriod(1)); }
+    if (s.replaced || p + 1 >= s.room.periods) showResult();
+    else { input.releaseLock(); scene = new BreakScene(s, () => startPeriod((p + 1) as 1 | 2)); }
   });
   scene = exam;
-  // 2교시를 시작할 때 남은 부정행위자도 이벤트도 없으면 바로 결과로
-  if (p === 1 && END_WHEN_ALL_CAUGHT && !s.room.students.some((x) => isCheating(x))) showResult();
+  // 다음 교시를 시작할 때 남은 부정행위자도 이벤트도 없으면 바로 결과로
+  if (p >= 1 && END_WHEN_ALL_CAUGHT && !s.room.students.some((x) => isCheating(x))) showResult();
 }
 
 function showResult(): void {

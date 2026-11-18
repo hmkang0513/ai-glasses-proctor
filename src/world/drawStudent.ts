@@ -72,15 +72,15 @@ export function drawStudent(g: Ctx, s: Student, o: DrawOpts): void {
   const { t } = o;
   const pose = s.pose;
   const skin = s.skin;
-  const wobSpeed = pose === "burst" ? 16 : 6;
-  const still = pose === "stare" || pose === "mouth" || pose === "nod";
+  const wobSpeed = pose === "burst" || (pose === "flinch" && s.timid) ? 16 : 6;
+  const still = pose === "stare" || pose === "mouth" || pose === "nod" || (pose === "flinch" && !s.timid);
   const wob = still ? 0 : Math.floor(t * wobSpeed + s.i) % 3;
 
   let hx = 0;
   if (pose === "side") hx = s.i % 5 < 2 ? 1 : -1;
   if (pose === "lookaround") hx = Math.floor(t * 2.5) % 2 ? 1 : -1;
   if (pose === "window") hx = -1;
-  const down = HEAD_DOWN.has(pose) ? 1 : 0;
+  const down = pose === "flinch" ? 3 : HEAD_DOWN.has(pose) ? 1 : 0;
   const nod = pose === "nod" ? (Math.floor(t * 4) % 2) : 0;
 
   // 의자 등받이, 몸

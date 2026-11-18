@@ -28,6 +28,10 @@ export class Input {
   private lookX = 0;
 
   constructor(private canvas: HTMLCanvasElement) {
+    // 터치 화면 기기(휴대폰·태블릿)는 처음부터 터치 모드: 마우스 고정을 쓰지 않는다
+    try {
+      this.touchMode = navigator.maxTouchPoints > 0 && window.matchMedia("(pointer: coarse)").matches;
+    } catch { /* 확인 못 하면 PC로 간주 */ }
     window.addEventListener("keydown", (e) => {
       const k = e.code;
       if (["Tab", "Space", "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"].includes(k)) e.preventDefault();
@@ -39,7 +43,7 @@ export class Input {
 
     canvas.addEventListener("pointermove", (e) => {
       const [x, y] = this.toCanvas(e);
-      if (e.pointerType === "touch") {
+      if (e.pointerType !== "mouse") {
         if (e.pointerId === this.stickId && this.stick) { this.stick.x = x; this.stick.y = y; this.updateStick(); }
         if (e.pointerId === this.lookId) { this.mouseDX += (x - this.lookX) * 3.2; this.lookX = x; }
         return;
@@ -56,7 +60,7 @@ export class Input {
       const [x, y] = this.toCanvas(e);
       this.mouseX = x;      // 터치는 이동 없이 바로 누르므로 여기서 위치를 잡는다
       this.mouseY = y;
-      if (e.pointerType === "touch") {
+      if (e.pointerType !== "mouse" || this.touchMode) {   // 손가락·펜 (또는 터치 기기)
         this.touchMode = true;
         e.preventDefault();
         const btn = this.touchButtons.find((b) => x >= b.x && x <= b.x + b.w && y >= b.y && y <= b.y + b.h);

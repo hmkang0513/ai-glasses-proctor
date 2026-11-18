@@ -15,7 +15,7 @@ export interface Session {
   room: Room;
   save: SaveData;
   r: Rng;
-  period: 0 | 1;
+  period: 0 | 1 | 2;
   complaints: number;        // 0~3 (0.5 단위)
   warningUsed: boolean;
   catches: CatchRecord[];

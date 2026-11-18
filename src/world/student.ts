@@ -26,6 +26,7 @@ export interface Student {
   partner: number;     // 짝 수법의 상대 자리 (-1 없음)
   group: number;       // 집단 수법 묶음 번호 (-1 없음)
   habits: Pose[];      // 무고한 습관 프로필 (고정)
+  timid: boolean;      // 소심한 무고 학생: 눈이 마주치면 움찔하지만 바로 다시 필기
 
   // 진행 상태
   pose: Pose;
