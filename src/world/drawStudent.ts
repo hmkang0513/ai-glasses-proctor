@@ -25,6 +25,70 @@ function desk(g: Ctx, paper: boolean): void {
   }
 }
 
+/** 학생 뒷모습: 감독관이 학생보다 뒤에 있을 때. 얼굴·안경 LED는 안 보이고 팔 동작만 보인다 */
+export function drawStudentBack(g: Ctx, s: Student, o: DrawOpts): void {
+  g.clearRect(0, 0, SPR_W, SPR_H);
+  const { t } = o;
+  const pose = s.pose;
+  const sh = s.shirt, skin = s.skin;
+  let hx = 0;
+  if (pose === "side") hx = s.i % 5 < 2 ? 1 : -1;
+  if (pose === "lookaround") hx = Math.floor(t * 2.5) % 2 ? 1 : -1;
+  const down = pose === "flinch" ? 3 : HEAD_DOWN.has(pose) ? 2 : pose === "write" || pose === "burst" || pose === "stare" ? 1 : 0;
+  const nod = pose === "nod" ? Math.floor(t * 4) % 2 : 0;
+  // 책상 (학생 너머로 보임)
+  px(g, CX - 14, Y - 3, 28, 7, "#c99a5e"); px(g, CX - 14, Y + 4, 28, 2, "#94703f");
+  px(g, CX - 13, Y + 6, 2, 11, "#5a4430"); px(g, CX + 11, Y + 6, 2, 11, "#5a4430");
+  if (pose === "paperup") px(g, CX - 6, Y - 14, 12, 4, "#f4f2ea");                 // 들어 올린 시험지 윗부분
+  // 몸 (등)
+  px(g, CX - 7, Y - 9, 14, 12, sh);
+  px(g, CX - 1, Y - 9, 2, 1, "rgba(0,0,0,0.2)");
+  // 머리 (뒤통수)
+  const hy = Y - 19 + down + nod;
+  px(g, CX - 5 + hx, hy, 10, 10, s.hair);
+  if (s.longHair) px(g, CX - 6 + hx, hy + 2, 12, 9, s.hair);
+  px(g, CX - 6 + hx, hy + 4, 1, 2, skin); px(g, CX + 5 + hx, hy + 4, 1, 2, skin);   // 귀
+  px(g, CX - 2 + hx, hy + 10, 4, 1, skin);                                            // 목덜미
+  // 고개를 돌리면 옆얼굴이 조금 보임 (흘끗 보면 뒤를 돌아봄)
+  if (pose === "glance") { px(g, CX + 3, hy + 3, 2, 5, skin); px(g, CX + 4, hy + 5, 1, 1, "#1a1414"); }
+  if (hx !== 0) px(g, hx > 0 ? CX + 4 + hx : CX - 5 + hx, hy + 3, 1, 5, skin);
+  // 안경다리 (옆에서 살짝)
+  if (s.glasses) { g.fillStyle = s.glasses.color; g.fillRect(CX - 6 + hx, hy + 4, 1, 1); g.fillRect(CX + 5 + hx, hy + 4, 1, 1); }
+  // 의자 등받이 (몸 앞에 가림)
+  px(g, CX - 8, Y - 3, 16, 3, "#4b3a2c"); px(g, CX - 8, Y + 1, 16, 2, "#5a4636");
+  px(g, CX - 7, Y + 3, 2, 14, "#3a2a20"); px(g, CX + 5, Y + 3, 2, 14, "#3a2a20");
+  // 팔 (뒤에서 보이는 만큼)
+  const shoulder = Y - 9;
+  switch (pose) {
+    case "stretch": case "handup": {
+      const top = hy - 6, len = shoulder + 1 - top;
+      if (pose === "stretch") { px(g, CX - 9, top, 2, len, sh); px(g, CX - 9, top - 2, 2, 2, skin); }
+      px(g, CX + 7, top, 2, len, sh); px(g, CX + 7, top - 2, 2, 2, skin);
+      break;
+    }
+    case "temple": case "neck":
+      px(g, CX + 6 + hx, hy + 4, 2, shoulder - hy - 3, sh); px(g, CX + 5 + hx, hy + 3, 2, 2, skin);
+      break;
+    case "ear": case "nosepush": case "cough":
+      px(g, CX - 8 + hx, hy + 5, 2, shoulder - hy - 4, sh);
+      break;
+    case "paperup": case "paperchest":
+      px(g, CX - 9, Y - 12, 2, 5, sh); px(g, CX + 7, Y - 12, 2, 5, sh);
+      break;
+    case "underdesk":
+      px(g, CX - 9, Y - 6, 2, 8, sh); px(g, CX + 7, Y - 6, 2, 8, sh);           // 팔이 아래로
+      break;
+    case "wrist":
+      px(g, CX - 9, Y - 8, 3, 3, sh);
+      break;
+    case "drink":
+      px(g, CX + 6, hy + 2, 2, shoulder - hy - 1, sh); px(g, CX + 5, hy, 3, 4, "#bfe3ef");
+      break;
+    default:
+      px(g, CX - 8, Y - 7, 2, 4, sh); px(g, CX + 6, Y - 7, 2, 4, sh);           // 팔꿈치 (필기 중)
+  }
+}
+
 /** 빈자리 */
 export function drawEmptySeat(g: Ctx): void {
   g.clearRect(0, 0, SPR_W, SPR_H);
@@ -154,10 +218,13 @@ export function drawStudent(g: Ctx, s: Student, o: DrawOpts): void {
       else if (s.watch !== "none") px(g, CX - 4, Y - 2, 2, 2, "#c9b48a");
       px(g, CX + 3, Y + 4, 2, 2, skin);
       break;
-    case "stretch":
-      px(g, CX - 9, hy - 6, 2, 12, sh); px(g, CX + 7, hy - 6, 2, 12, sh);
-      px(g, CX - 9, hy - 8, 2, 2, skin); px(g, CX + 7, hy - 8, 2, 2, skin);
+    case "stretch": {
+      const top = hy - 6, len = Y - 8 - top;   // 어깨에서 머리 위까지
+      px(g, CX - 9, top, 2, len, sh); px(g, CX + 7, top, 2, len, sh);
+      px(g, CX - 8, Y - 9, 2, 2, sh); px(g, CX + 6, Y - 9, 2, 2, sh);
+      px(g, CX - 9, top - 2, 2, 2, skin); px(g, CX + 7, top - 2, 2, 2, skin);
       break;
+    }
     case "ear":
       px(g, CX - 8 + hx, hy + 4, 2, 6, sh); px(g, CX - 7 + hx, hy + 3, 2, 2, skin); writeHand();
       break;
@@ -213,7 +280,8 @@ export function drawStudent(g: Ctx, s: Student, o: DrawOpts): void {
       px(g, CX - 7, Y - 2, 2, 6, sh); px(g, CX - 9, Y - 4, 3, 2, "#f4f2ea"); writeHand();
       break;
     case "handup":
-      px(g, CX + 6, hy - 6, 2, 12, sh); px(g, CX + 6, hy - 8, 2, 2, skin); leftHand();
+      px(g, CX + 7, hy - 6, 2, Y - 8 - (hy - 6), sh); px(g, CX + 6, Y - 9, 2, 2, sh);
+      px(g, CX + 7, hy - 8, 2, 2, skin); leftHand();
       break;
     case "clothes":
       px(g, CX - 3, Y - 6, 6, 2, skin); writeHand();

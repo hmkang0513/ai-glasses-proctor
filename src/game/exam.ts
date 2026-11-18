@@ -10,7 +10,7 @@ import { applyLight, cctvPass, type PointLight, type PresetName } from "../rende
 import { F, SPEAKER, drawClipboard, drawRoom, proj, quad, toCam, type Camera } from "../render/fp";
 import { drawTopRoom, drawTopTeacher, tdX, tdY } from "../render/topdown";
 import { updateStudent } from "../world/behavior";
-import { SPR_H, SPR_W, drawEmptySeat, drawProctor, drawStanding, drawStudent } from "../world/drawStudent";
+import { SPR_H, SPR_W, drawEmptySeat, drawProctor, drawStanding, drawStudent, drawStudentBack } from "../world/drawStudent";
 import { COLX, ROOM_D, ROOM_W, ROWZ, isCheating, type Student } from "../world/student";
 import { drawCloseup } from "../ui/closeup";
 import { CHEAT_BY_ID } from "../data/cheats";
@@ -689,6 +689,7 @@ export class ExamScene {
       if (it.kind === "aide") drawProctor(sg, this.t);
       else if (it.kind === "walk") drawStanding(sg, it.st, this.t);
       else if (it.st.status !== "seated") drawEmptySeat(sg);
+      else if (this.cam.z > it.st.z + 0.15) drawStudentBack(sg, it.st, { t: this.t, ledVisible: false, lights: local });   // 학생은 칠판을 보고 앉아 있음
       else drawStudent(sg, it.st, { t: this.t, ledVisible: true, lights: local });
       const sc = (SPX * F) / c[2];
       const [fx, fy] = proj(c);
@@ -744,7 +745,7 @@ export class ExamScene {
     drawTopRoom(bg);
     const order = [...this.students].sort((a, b) => b.z - a.z);
     for (const st of order) {
-      if (st.status === "seated") drawStudent(sg, st, { t: this.t, ledVisible: true, lights: [] });
+      if (st.status === "seated") drawStudentBack(sg, st, { t: this.t, ledVisible: false, lights: [] });   // 뒤쪽 카메라라 뒷모습
       else drawEmptySeat(sg);
       bg.drawImage(sprC, Math.round(tdX(st.x) - 16), Math.round(tdY(st.z) - 24));
     }
