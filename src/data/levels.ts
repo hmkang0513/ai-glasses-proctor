@@ -53,6 +53,12 @@ function tutorialFor(level: number): string[] {
     "한 학생 옆에 너무 오래 서 있으면 \"감독관이 쳐다봐서 불편하다\"는 민원이 들어옵니다.",
     "Tab을 누르면 교실 뒤 CCTV 화면으로 볼 수 있습니다.",
   ];
+  if (level === 4) return [
+    "수석감독관 메모 · 네 번째 감독",
+    "오늘부터 1교시 전 12초 동안 시계를 확인합니다. 학생들이 시계를 책상 위에 올려 둡니다.",
+    "스마트워치는 관찰(E) 뒤 F로 보관합니다. 아날로그 시계를 가져가면 민원이 들어옵니다.",
+    "이번 감독부터는 1교시 뒤 2교시도 있습니다.",
+  ];
   return [];
 }
 
@@ -147,6 +153,21 @@ export function buildRoom(level: number, seed = level * 7919 + 13, alumnus: Alum
     const k = spreadPick(students, free, r);
     students[k].cheat = pick(r, singles); free.delete(k);
     remaining--;
+  }
+
+  // 2~5회차: 입실 검사로 걸러지지 않는 수법 1명을 뒤쪽 두 줄에 → 판이 너무 짧게 끝나지 않게
+  if (level >= 2 && level <= 5) {
+    const noGate = (c: CheatMethod) => !c.gate.tray && !c.gate.hidden && !c.gate.photoMismatch && c.kind === "exam" && c.family !== "ai";   // AI 안경은 입실 확대경에 보임
+    const hasBack = students.some((s) => s.cheat && s.i >= 10 && noGate(s.cheat));
+    const backFree = [...free].filter((k) => k >= 10);
+    const choices = pool.filter(noGate);
+    if (!hasBack && backFree.length && choices.length) {
+      // 앞쪽 단독 부정행위자 한 명을 빼고 뒤쪽에 새로 둠 (인원 유지)
+      const front = students.find((s) => s.cheat && s.i < 10 && s.cheat.kind === "exam" && s.partner < 0 && s.group < 0);
+      if (front) { front.cheat = null; free.add(front.i); }
+      const k = pick(r, backFree);
+      students[k].cheat = pick(r, choices); free.delete(k);
+    }
   }
 
   // --- 외형: 안경 약 55% (9~13명), 부정행위에 필요한 안경은 강제 ---

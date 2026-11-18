@@ -4,6 +4,8 @@ import type { Input } from "../core/input";
 import { CHEAT_BY_ID } from "../data/cheats";
 import { BREAK_LABEL, BREAK_SECONDS, LUNCH_LABEL, PERIODS } from "../data/rules";
 import type { Session } from "./session";
+import { END_WHEN_ALL_CAUGHT } from "../data/rules";
+import { isCheating } from "../world/student";
 
 export class BreakScene {
   readonly name = "break";
@@ -35,13 +37,16 @@ export class BreakScene {
       const x = ((this.t * 18 + n * 70) % 520) - 20;
       px(g, x, 150, 8, 8, "#2b2320"); px(g, x - 2, 158, 12, 14, n % 2 ? "#2f3e63" : "#e4e4ea");
     }
-    px(g, 60, 180, 360, 70, "rgba(16,22,20,0.92)");
+    px(g, 60, 180, 380, 80, "rgba(16,22,20,0.92)");
     const lunch = this.s.period === 1;   // 2교시 뒤는 점심시간
+    const allFound = END_WHEN_ALL_CAUGHT && !this.s.room.students.some((x) => isCheating(x));   // 반입 판정은 생성자에서 이미 끝남
     g.font = KR(20); g.fillStyle = COLORS.accent; g.fillText(lunch ? LUNCH_LABEL : BREAK_LABEL, 76, 188);
     const caught = this.s.catches.filter((c) => c.correct && c.period === this.s.period).length;
     g.font = KR(13); g.fillStyle = COLORS.chalk;
     g.fillText(`${PERIODS[this.s.period].name.slice(0, 3)} 적발 ${caught}명 · ${lunch ? "학생들이 점심을 먹고 돌아옵니다." : "학생들이 화장실에 다녀옵니다."}`, 76, 214);
     g.fillStyle = "#9aa69f";
-    g.fillText(this.t > 2 ? `클릭하면 ${PERIODS[this.s.period + 1]?.name ?? "다음 교시"}을 시작합니다` : "", 76, 232);
+    if (allFound) { g.fillStyle = COLORS.chalk; g.fillText("이 교실의 부정행위자를 모두 찾았습니다. 다음 교시는 부감독이 맡습니다.", 76, 232); }
+    g.fillStyle = "#9aa69f";
+    g.fillText(this.t > 2 ? (allFound ? "클릭하면 결과 보고서 ▶" : `클릭하면 ${PERIODS[this.s.period + 1]?.name ?? "다음 교시"}을 시작합니다`) : "", 76, allFound ? 246 : 232);
   }
 }

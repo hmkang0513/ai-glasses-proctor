@@ -70,7 +70,7 @@ export const CHEATS: CheatMethod[] = [
     hint: "지우개 포장지 안쪽에 공식을 적어 두고 지우개를 자꾸 꺼내 만지작거렸습니다.", source: "일반 수법",
   },
   {
-    id: "peek", no: 4, name: "옆자리 훔쳐보기", family: "signal", minLevel: 1, kind: "exam",
+    id: "peek", no: 4, name: "옆자리 훔쳐보기", family: "signal", minLevel: 4, kind: "exam",
     loop: [{ pose: "side", dur: 2.0 }], interval: [5, 9], tells: {}, gate: {},
     hint: "고개를 옆으로 돌려 옆자리 답안을 반복해서 봤습니다. 가장 오래되고 흔한 수법입니다.", source: "일반 수법",
   },

@@ -44,7 +44,7 @@ export class GateScene {
   helpOpen: boolean;
 
   constructor(private s: Session, private onDone: () => void) {
-    this.helpOpen = s.room.level <= 3;
+    this.helpOpen = s.room.level <= 4;
     this.loadStudent();
   }
 
@@ -341,15 +341,29 @@ export class GateScene {
     px(g, x, y, w, h, "#f4f2ea");
     g.font = KR(16); g.fillStyle = COLORS.navy; g.fillText("입실 검사 · 08:00~08:10", x + 14, y + 12);
     g.font = KR(13); g.fillStyle = COLORS.ink;
-    const lines = [
-      "학생이 안경을 벗어 바구니에 올립니다. 물건을 클릭하면 확대경으로 봅니다.",
-      "기기가 보이면 그 물건을 고르고 HOLD: 스스로 낸 것이니 보관하고 시험은 보게 합니다.",
-      "몸에 숨긴 것 같거나 수험표 사진이 다르면 CHECK(6초 소모). 아무것도 없으면 민원.",
-      "금속 탐지기는 금속테·시계에도 울립니다. 일반 안경을 뺏으면 민원이 들어옵니다.",
+    // 회차마다 새로 배우는 것만 (2회차 PASS/HOLD, 3회차 CHECK, 4회차 금속 부위)
+    const lv = this.s.room.level;
+    const lines: string[] = lv <= 2 ? [
+      "학생이 안경을 벗어 바구니에 올립니다. 물건을 클릭하면 오른쪽 확대경으로 봅니다.",
+      "기기가 보이면 그 물건을 고르고 2 HOLD: 스스로 낸 것이니 보관하고 시험은 보게 합니다.",
+      "아무 문제가 없으면 1 PASS. 일반 안경을 HOLD하면 민원이 들어옵니다.",
+    ] : lv === 3 ? [
+      "새로 배울 것: 3 CHECK(몸 수색, 6초 소모).",
+      "몸에 숨긴 것 같거나 수험표 사진이 얼굴과 다르면 CHECK. 아무것도 없으면 민원.",
+    ] : [
+      "새로 배울 것: 오른쪽 아래 금속 탐지는 머리·손목·몸통·발 부위별입니다.",
+      "금속테·아날로그 시계에도 울립니다. 어느 부위가 왜 울리는지 생각하세요.",
       "08:10이 되면 남은 학생은 검사 없이 들어갑니다. 4를 누르면 남은 학생을 모두 들여보냅니다.",
     ];
+    let size = 13, lh = 17;
+    for (; size >= 10; size--, lh -= 1.5) {
+      g.font = KR(size);
+      const n = lines.reduce((a, p) => a + wrapText(g, p, w - 30).length, 0);
+      if (40 + n * lh < h - 36) break;
+    }
+    g.fillStyle = COLORS.ink;
     let yy = y + 40;
-    for (const p of lines) for (const l of wrapText(g, p, w - 30)) { g.fillText(l, x + 16, yy); yy += 17; }
+    for (const p of lines) for (const l of wrapText(g, p, w - 30)) { g.fillText(l, x + 16, yy); yy += lh; }
     g.font = KR(12); g.fillStyle = "#7d776b"; g.fillText("클릭하면 시작합니다", x + 16, y + h - 22);
   }
 }
