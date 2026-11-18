@@ -80,6 +80,7 @@ function drawFaceBack(g: Ctx, s: Student, t: number): void {
     const c = s.glasses.color === "#d9d3c7" ? "#8a8478" : s.glasses.color;
     const th = s.aiGen === 1 ? 3 : 1;
     px(g, 8, 22, 6, th, c); px(g, 50, 22, 6, th, c);
+    if (s.aiGen === 1 && s.ledOn) { px(g, 55, 20, 2, 2, "#ff3b30"); g.fillStyle = "rgba(255,70,50,0.35)"; g.fillRect(53, 18, 6, 6); }   // 테 모서리 LED
   }
   // 귀 뒤 이어폰: 뒤에서 보면 귓바퀴 뒤에 작게 튀어나옴
   if (cheat?.tells.earpiece) { px(g, 53, 27, 2, 3, "#c99a7a"); px(g, 9, 27, 1, 2, "#c99a7a"); }

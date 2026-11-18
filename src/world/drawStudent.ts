@@ -97,8 +97,21 @@ export function drawStudentBack(g: Ctx, s: Student, o: DrawOpts): void {
     case "drink":
       px(g, CX + 6, hy + 2, 2, shoulder - hy - 1, sh); px(g, CX + 5, hy, 3, 4, "#bfe3ef");
       break;
+    case "palm":
+      if (s.cheat?.id === "palm") {
+        // 왼팔을 가슴 앞으로 접어 올림: 뒤에서는 팔꿈치가 들리고 손끝이 어깨 옆으로 보임
+        px(g, CX - 9, Y - 10, 2, 6, sh); px(g, CX - 9, Y - 12, 3, 2, skin);
+        px(g, CX + 6, Y - 7, 2, 4, sh);
+      } else { px(g, CX - 6, Y - 6, 2, 3, sh); px(g, CX + 4, Y - 6, 2, 3, sh); }   // 손 비비기: 팔이 몸 앞으로 모임
+      break;
     default:
       px(g, CX - 8, Y - 7, 2, 4, sh); px(g, CX + 6, Y - 7, 2, 4, sh);           // 팔꿈치 (필기 중)
+  }
+  // 1세대 AI 안경 LED는 테 바깥 모서리에 있어 뒤·옆에서도 귀 앞쪽으로 빨간 불이 보임
+  if (s.aiGen === 1 && s.ledOn && s.glasses && pose !== "glassesoff") {
+    const lx = (o.profile ?? 0) < 0 ? CX - 6 + hx : CX + 5 + hx, ly = hy + 4;
+    px(g, lx, ly, 1, 1, "#ff3b30");
+    o.lights.push({ x: lx, y: ly });
   }
 }
 
