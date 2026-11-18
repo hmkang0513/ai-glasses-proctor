@@ -38,16 +38,32 @@ function colleagueLine(s: Session, d: ResultData): string {
   return line;
 }
 
+/** 교무실 책상 물건: 조건을 처음 만족하면 생기고 계속 남음 (판정과 무관) */
+const DESK: Array<[string, (s: Session) => boolean]> = [
+  ["box", (s) => (s.save.stats?.caught ?? 0) >= 5],
+  ["plant", (s) => (s.save.stats?.perfect ?? 0) >= 3],
+  ["mug2", (s) => (s.save.stats?.stars ?? 0) >= 5],
+  ["nameplate", (s) => s.room.level >= 25],
+  ["nameplate2", (s) => s.room.level >= 50],
+  ["books", (s) => s.save.notebook.length >= 10],
+  ["postcard", (s) => !!s.save.stats?.postcard],
+  ["memoframe", (s) => (s.save.stats?.s ?? 0) >= 5],
+  ["calendar", (s) => s.room.level >= 10],
+];
+
 export class StaffroomScene {
   t = 0;
   line: string;
+  fresh: string[] = [];   // 이번 판에 새로 생긴 물건 (NEW 반짝임)
   constructor(private s: Session, d: ResultData, private onDone: () => void) {
     this.line = colleagueLine(s, d);
+    const desk = (s.save.desk ??= []);
+    for (const [id, ok] of DESK) if (!desk.includes(id) && ok(s)) { desk.push(id); this.fresh.push(id); }
     writeSave(s.save);   // 최근 대사 기억 (3판 안 반복 금지)
   }
   update(dt: number, inp: Input): void {
     this.t += dt;
-    if ((this.t > 0.6 && (inp.clicked || inp.hit("Space") || inp.hit("Enter"))) || this.t > 6) this.onDone();
+    if ((this.t > 0.6 + this.fresh.length * 0.4 && (inp.clicked || inp.hit("Space") || inp.hit("Enter"))) || this.t > 6) this.onDone();
   }
   render(g: Ctx): void {
     g.textBaseline = "top";
@@ -61,6 +77,7 @@ export class StaffroomScene {
     px(g, 210, 148, 18, 22, "#e9e6da"); px(g, 228, 154, 6, 10, "#e9e6da"); px(g, 212, 150, 14, 4, "#5a3a22");   // 커피
     const steam = Math.floor(this.t * 3) % 2;
     px(g, 214 + steam, 138, 2, 6, "#ffffff88"); px(g, 220 - steam, 134, 2, 6, "#ffffff88");
+    this.drawDesk(g);
     // 동료 감독관 (앉아서 고개를 돌림)
     px(g, 330, 112, 40, 58, "#39435a"); px(g, 336, 84, 28, 28, "#e0b48e"); px(g, 334, 80, 32, 10, "#2b2320");
     px(g, 342, 96, 3, 3, "#1a1414"); px(g, 354, 96, 3, 3, "#1a1414"); px(g, 346, 104, 8, 2, "#8a4a40");
@@ -74,5 +91,37 @@ export class StaffroomScene {
     g.font = KR(11); g.fillStyle = "#f4e9d0";
     g.fillText(`${this.s.room.level}번째 감독 끝 · 교무실`, 40, 178);
     if (this.t > 0.6) { g.fillStyle = "#f4e9d0"; g.fillText("누르면 다음 감독 ▶", W - 120, H - 16); }
+  }
+
+  /** 책상 위·벽 물건 (기획 12라운드 ② 좌표) */
+  private drawDesk(g: Ctx): void {
+    const has = (id: string) => this.s.save.desk?.includes(id);
+    const at: Record<string, [number, number]> = {};
+    if (has("box")) { px(g, 18, 150, 40, 20, "#6f7d86"); px(g, 18, 150, 40, 4, "#5a6670"); px(g, 31, 158, 14, 6, "#f4f2ea"); at.box = [38, 146]; }
+    if (has("plant")) { px(g, 72, 158, 20, 12, "#a0613a"); px(g, 70, 144, 8, 10, "#4f8a4a"); px(g, 78, 140, 8, 12, "#6aa860"); px(g, 86, 146, 8, 10, "#4f8a4a"); at.plant = [82, 136]; }
+    if (has("mug2")) { px(g, 248, 152, 14, 18, "#c0504d"); px(g, 262, 156, 4, 8, "#c0504d"); px(g, 248, 152, 14, 3, "#f4f2ea"); at.mug2 = [255, 148]; }
+    if (has("nameplate2")) { px(g, 272, 160, 44, 10, "#2a2a4a"); px(g, 276, 162, 36, 2, "#e8c35a"); px(g, 276, 166, 36, 2, "#e8c35a"); at.nameplate2 = [294, 156]; }
+    else if (has("nameplate")) { px(g, 272, 160, 44, 10, "#3a3a3a"); px(g, 276, 163, 36, 3, "#e8c35a"); at.nameplate = [294, 156]; }
+    if (has("books")) {
+      const cs = ["#3a5a8a", "#8a3a3a", "#4a7a4a", "#c9a95a"];
+      for (let k = 0; k < 6; k++) { const hh = 30 + (k % 3) * 3; px(g, 392 + k * 10, 168 - hh, 8, hh, cs[k % 4]); }
+      px(g, 386, 168, 72, 4, "#6a4f36"); at.books = [420, 128];
+    }
+    if (has("postcard")) { px(g, 172, 40, 36, 24, "#f4e9d0"); px(g, 199, 43, 6, 6, "#c0504d"); px(g, 176, 50, 20, 2, "#aab"); px(g, 176, 55, 20, 2, "#aab"); px(g, 189, 38, 2, 2, "#c8322a"); at.postcard = [190, 34]; }
+    if (has("memoframe")) { px(g, 220, 34, 40, 30, "#5a4a3a"); px(g, 224, 38, 32, 22, "#fff3a8"); px(g, 238, 46, 3, 3, "#e8a13a"); at.memoframe = [240, 30]; }
+    if (has("calendar")) {
+      px(g, 276, 30, 30, 38, "#f4f2ea"); px(g, 276, 30, 30, 6, "#c0504d");
+      for (let k = 0; k < 16; k++) px(g, 279 + (k % 4) * 7, 39 + Math.floor(k / 4) * 7, 4, 4, "#ccc");
+      const marks = Math.min(16, Math.floor(this.s.room.level / 10));
+      for (let k = 0; k < marks; k++) px(g, 279 + (k % 4) * 7, 39 + Math.floor(k / 4) * 7, 4, 4, "#c0504d");
+      at.calendar = [291, 26];
+    }
+    // 이번 판에 새로 생긴 물건: 하나씩 0.4초 간격으로 NEW
+    this.fresh.forEach((id, k) => {
+      const p = at[id];
+      if (!p || this.t < k * 0.4 || Math.floor(this.t * 4) % 2) return;
+      px(g, p[0] - 13, p[1] - 12, 26, 11, COLORS.accent);
+      g.font = KR(9); g.fillStyle = "#1a1414"; g.fillText("NEW", p[0] - 10, p[1] - 11);
+    });
   }
 }
