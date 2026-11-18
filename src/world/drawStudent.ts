@@ -13,7 +13,12 @@ export interface DrawOpts {
   t: number;
   ledVisible: boolean;           // LED를 그릴지 (가까이·정전 때 잘 보임)
   lights: Array<{ x: number; y: number }>; // LED 빛 번짐 위치(스프라이트 좌표)
+  /** 옆에서 볼 때 칠판이 화면의 어느 쪽인지(-1 왼쪽, 1 오른쪽). 뒷모습에 옆얼굴을 그린다 */
+  profile?: number;
 }
+
+// 앞모습에서 눈을 들고 있는 동작 (나머지는 모두 시험지를 내려다봄)
+const EYES_UP = new Set(["glance", "lookaround", "side", "window", "think", "stretch", "cough", "drink", "handup"]);
 
 function desk(g: Ctx, paper: boolean): void {
   px(g, CX - 14, Y, 28, 10, "#c99a5e");
@@ -34,6 +39,7 @@ export function drawStudentBack(g: Ctx, s: Student, o: DrawOpts): void {
   let hx = 0;
   if (pose === "side") hx = s.i % 5 < 2 ? 1 : -1;
   if (pose === "lookaround") hx = Math.floor(t * 2.5) % 2 ? 1 : -1;
+  const prof = o.profile && pose !== "glance" && hx === 0 ? Math.sign(o.profile) : 0;
   const down = pose === "flinch" ? 3 : HEAD_DOWN.has(pose) ? 2 : pose === "write" || pose === "burst" || pose === "stare" ? 1 : 0;
   const nod = pose === "nod" ? Math.floor(t * 4) % 2 : 0;
   // 책상 (학생 너머로 보임)
@@ -52,6 +58,13 @@ export function drawStudentBack(g: Ctx, s: Student, o: DrawOpts): void {
   // 고개를 돌리면 옆얼굴이 조금 보임 (흘끗 보면 뒤를 돌아봄)
   if (pose === "glance") { px(g, CX + 3, hy + 3, 2, 5, skin); px(g, CX + 4, hy + 5, 1, 1, "#1a1414"); }
   if (hx !== 0) px(g, hx > 0 ? CX + 4 + hx : CX - 5 + hx, hy + 3, 1, 5, skin);
+  if (prof) {   // 옆모습: 칠판(앞) 쪽 얼굴 반쪽, 눈은 아래(시험지)
+    const fx = prof > 0 ? CX + 2 : CX - 5;
+    px(g, fx, hy + 3, 3, 7, skin);
+    px(g, prof > 0 ? CX + 5 : CX - 6, hy + 6, 1, 2, skin);                         // 코
+    px(g, prof > 0 ? CX + 3 : CX - 4, hy + 6, 1, 1, "#1a1414");                   // 내려다보는 눈
+    if (s.glasses) { g.fillStyle = s.glasses.color; g.fillRect(prof > 0 ? CX + 1 : CX - 4, hy + 5, 3, 1); }
+  }
   // 안경다리 (옆에서 살짝)
   if (s.glasses) { g.fillStyle = s.glasses.color; g.fillRect(CX - 6 + hx, hy + 4, 1, 1); g.fillRect(CX + 5 + hx, hy + 4, 1, 1); }
   // 의자 등받이 (몸 앞에 가림)
@@ -161,13 +174,18 @@ export function drawStudent(g: Ctx, s: Student, o: DrawOpts): void {
 
   // 눈
   const ex = pose === "side" || pose === "lookaround" || pose === "window" ? Math.sign(hx) : 0;
-  const lookDown = pose === "write" || pose === "burst" || pose === "stare" || pose === "mouth" || down ? 1 : 0;
+  const lookDown = EYES_UP.has(pose) && !down ? 0 : 1;
   const ey = hy + 5 + lookDown - (pose === "glance" ? 1 : 0);
   if (pose === "cough") {
     px(g, CX - 3 + hx, ey, 2, 1, "#1a1414"); px(g, CX + 2 + hx, ey, 2, 1, "#1a1414");
   } else {
-    px(g, CX - 3 + hx + ex, ey, 1, 1, "#1a1414");
-    px(g, CX + 2 + hx + ex, ey, 1, 1, "#1a1414");
+    if (lookDown) {   // 시험지를 내려다보는 눈: 내리깐 눈꺼풀(가로 선)이라 감독관과 눈이 마주치지 않음
+      px(g, CX - 4 + hx + ex, ey, 2, 1, "#1a1414");
+      px(g, CX + 2 + hx + ex, ey, 2, 1, "#1a1414");
+    } else {
+      px(g, CX - 3 + hx + ex, ey, 1, 1, "#1a1414");
+      px(g, CX + 2 + hx + ex, ey, 1, 1, "#1a1414");
+    }
   }
   // 입
   if (pose === "mouth" && Math.floor(t * 8) % 2 === 0) px(g, CX - 1 + hx, ey + 3, 2, 1, "#8a3f38");

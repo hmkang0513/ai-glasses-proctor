@@ -20,6 +20,8 @@ export class Input {
   touchMode = false;
   /** 시험 장면이 매 프레임 등록하는 터치 버튼. 비어 있으면 터치는 클릭으로만 쓰인다 */
   touchButtons: TouchButton[] = [];
+  /** 시험 중이라 터치 끌기(걷기·시선)를 쓰는지 */
+  touchControls = false;
   /** 터치 조이스틱 상태 (그리기용) */
   stick: { ox: number; oy: number; x: number; y: number } | null = null;
 
@@ -41,7 +43,9 @@ export class Input {
     window.addEventListener("keyup", (e) => this.down.delete(e.code));
     window.addEventListener("blur", () => { this.down.clear(); this.stickKeys.clear(); });
 
-    canvas.addEventListener("pointermove", (e) => {
+    const onBtn = (e: PointerEvent) => (e.target as HTMLElement | null)?.closest?.("#touchbar") != null;
+    window.addEventListener("pointermove", (e) => {
+      if (onBtn(e)) return;
       const [x, y] = this.toCanvas(e);
       if (e.pointerType !== "mouse") {
         if (e.pointerId === this.stickId && this.stick) { this.stick.x = x; this.stick.y = y; this.updateStick(); }
@@ -56,7 +60,9 @@ export class Input {
       this.mouseY = y;
     });
 
-    canvas.addEventListener("pointerdown", (e) => {
+    window.addEventListener("pointerdown", (e) => {
+      if (onBtn(e)) return;
+      if (e.pointerType === "mouse" && e.target !== canvas && !this.touchMode) return;   // PC는 캔버스 클릭만
       const [x, y] = this.toCanvas(e);
       this.mouseX = x;      // 터치는 이동 없이 바로 누르므로 여기서 위치를 잡는다
       this.mouseY = y;
@@ -65,7 +71,7 @@ export class Input {
         e.preventDefault();
         const btn = this.touchButtons.find((b) => x >= b.x && x <= b.x + b.w && y >= b.y && y <= b.y + b.h);
         if (btn) { this.pressed.add(btn.code); return; }
-        if (this.touchButtons.length) {
+        if (this.touchButtons.length || this.touchControls) {
           if (x < W * 0.45 && this.stickId < 0) {
             this.stickId = e.pointerId; this.stick = { ox: x, oy: y, x, y };
           } else if (this.lookId < 0) {
@@ -80,8 +86,8 @@ export class Input {
       if (e.pointerId === this.stickId) { this.stickId = -1; this.stick = null; this.stickKeys.clear(); }
       if (e.pointerId === this.lookId) this.lookId = -1;
     };
-    canvas.addEventListener("pointerup", end);
-    canvas.addEventListener("pointercancel", end);
+    window.addEventListener("pointerup", end);
+    window.addEventListener("pointercancel", end);
 
     document.addEventListener("pointerlockchange", () => {
       this.locked = document.pointerLockElement === canvas;
@@ -103,6 +109,11 @@ export class Input {
     if (dy > 6) this.stickKeys.add("KeyS");
     if (dx < -6) this.stickKeys.add("KeyA");
     if (dx > 6) this.stickKeys.add("KeyD");
+  }
+
+  /** 화면 밖 버튼에서 누른 키 */
+  press(code: string): void {
+    this.pressed.add(code);
   }
 
   isDown(code: string): boolean {

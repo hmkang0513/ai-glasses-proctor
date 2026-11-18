@@ -23,7 +23,7 @@ export interface BehaviorCtx {
 
 const HABIT_DUR: Partial<Record<Pose, number>> = {
   nosepush: 0.5, glassesoff: 2.2, lookaround: 1.2, ear: 0.6, stretch: 1.6, think: 2.5, wrist: 0.6,
-  drink: 1.2, cough: 0.5, stare: 2.2, neck: 0.7, clothes: 0.8, temple: 0.7, underdesk: 0.8, side: 0.9, palm: 0.6, glance: 1.0,
+  drink: 1.2, cough: 0.5, stare: 2.2, neck: 0.7, clothes: 0.8, temple: 0.7, underdesk: 0.8, side: 0.9, palm: 0.6, glance: 0.6,
 };
 
 export function updateStudent(s: Student, ctx: BehaviorCtx): void {
@@ -49,7 +49,7 @@ export function updateStudent(s: Student, ctx: BehaviorCtx): void {
       s.stepT += dt;
       if (s.loopIdx < 0) {                 // 0단계: 감독관 쪽을 흘끗 보고 나서 시작
         s.pose = "glance";
-        if (s.stepT >= 0.7) { s.loopIdx = 0; s.stepT = 0; }
+        if (s.stepT >= 0.5) { s.loopIdx = 0; s.stepT = 0; }
         return;
       }
       const step = loop[s.loopIdx];
@@ -75,7 +75,8 @@ export function updateStudent(s: Student, ctx: BehaviorCtx): void {
     }
     if (t >= s.nextCheatAt && !near && !s.habitPose) {
       s.acting = true;
-      s.loopIdx = t < s.skipGlanceUntil ? 0 : -1;   // 흘끗 보기부터 (방금 움찔했으면 바로)
+      const glanceP = ctx.level <= 3 ? 0.5 : 0.3;
+      s.loopIdx = t < s.skipGlanceUntil || ctx.dist(s) > 6 || r() >= glanceP ? 0 : -1;   // 가끔 흘끗 보고 시작 (방금 움찔했거나 멀면 바로)
       s.stepT = 0;
       s.pose = s.loopIdx < 0 ? "glance" : loop[0].pose;
       return;

@@ -247,7 +247,7 @@ export function buildRoom(level: number, seed = level * 7919 + 13, alumnus: Alum
     s.habits = habits;
   });
   for (const s of students) if (s.cheat) s.habits = [pick(r, ["think", "stretch", "drink"] as Pose[])];
-  for (const s of students) if (!s.cheat && r() < 0.3) s.habits.push("glance");   // 평범한 학생은 가끔만
+  for (const s of students) if (!s.cheat && r() < 0.1) s.habits.push("glance");   // 평범한 학생은 가끔만
   // 소심한 무고 학생 1~3명 (눈이 마주치면 움찔 → 움찔만으로는 범인을 확정할 수 없게)
   for (const s of shuffle(r, students.filter((x) => !x.cheat)).slice(0, Math.max(1, Math.min(4, students.filter((x) => x.cheat).length)))) { s.timid = true; if (!s.habits.includes("glance")) s.habits.push("glance"); }
   // 2회차 미끼: 검은 뿔테 학생은 안경을 자주 고쳐 씀

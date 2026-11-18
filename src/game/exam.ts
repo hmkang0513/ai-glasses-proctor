@@ -166,12 +166,6 @@ export class ExamScene {
   }
 
   private renderTouchUi(g: Ctx): void {
-    for (const b of this.touchUi) {
-      px(g, b.x, b.y, b.w, b.h, "rgba(16,22,20,0.75)");
-      g.strokeStyle = COLORS.accent; g.lineWidth = 1; g.strokeRect(b.x + 0.5, b.y + 0.5, b.w - 1, b.h - 1);
-      g.font = KR(11); g.fillStyle = COLORS.chalk; g.textBaseline = "top";
-      g.fillText(b.label, b.x + b.w / 2 - g.measureText(b.label).width / 2, b.y + 7);
-    }
     if (this.touchUi.length && this.mode === "fp") {
       // 조이스틱 자리 안내 / 누르고 있는 동안 위치
       const st = this.stick;
@@ -292,7 +286,7 @@ export class ExamScene {
   windowPersonVisible(): boolean {
     if (this.windowSeat < 0 || this.t < this.windowFrom) return false;
     const st = this.students[this.windowSeat];
-    return st.status === "seated" && this.t < this.windowFrom + 60;
+    return st.status === "seated" && this.t < this.windowFrom + 100;
   }
 
   get students(): Student[] {
@@ -312,6 +306,12 @@ export class ExamScene {
     if (!this.watched(st)) return false;
     if (this.cam.z <= st.z) return true;
     return this.t - (this.lastGlance[st.i] ?? -99) < 5;
+  }
+
+  /** 감독관이 학생의 옆쪽에 서 있는지 (앞쪽이라도 각도가 60°보다 크면 옆모습으로) */
+  sideView(st: Student): boolean {
+    const dz = st.z - this.cam.z, dx = Math.abs(st.x - this.cam.x);
+    return dz < dx * 0.55;
   }
 
   /** 감독관이 이 학생 쪽을 보고 있는지 (시야 ±35°, 7m 이내) */
@@ -338,9 +338,11 @@ export class ExamScene {
   update(dt: number, inp: Input): void {
     if (this.ended) return;
     this.rt += dt;
+    this.touchMemo = inp.touchMode;
     // 휴대폰: 화면 버튼 등록 (명부를 보는 중이면 터치는 닫기용)
     this.touchUi = inp.touchMode && !this.memoOpen ? this.buildTouchUi() : [];
-    inp.touchButtons = this.touchUi;
+    inp.touchButtons = [];                          // 버튼은 화면 밖 HTML (main.ts)
+    inp.touchControls = inp.touchMode && !this.memoOpen;
     this.stick = inp.stick;
     if (this.glitch) { this.glitch.update(dt); if (this.glitch.fx.done()) this.glitch = null; }
     if (inp.hit("KeyM")) this.toast(toggleMute() ? "소리 끔" : "소리 켬", 1.5);
@@ -497,7 +499,7 @@ export class ExamScene {
     }
     if (this.panel >= 0) {
       const st = this.students[this.panel];
-      if (st.status !== "seated" || this.dist(st) > OBSERVE_RANGE + 1) this.panel = -1;
+      if (st.status !== "seated" || this.dist(st) > OBSERVE_RANGE + 0.3) this.panel = -1;
     }
     // T: 열화상
     if (inp.hit("KeyT")) {
@@ -508,7 +510,8 @@ export class ExamScene {
     }
     // R: 전파 탐지기 (16회차부터 지급, 교시당 2회)
     if (inp.hit("KeyR")) {
-      if (this.s.room.level < 16) this.toast("전파 탐지기는 아직 지급되지 않았습니다", 2);
+      if (this.pre > 0) this.toast("시계 확인 시간에는 전파 탐지기를 쓰지 않습니다", 2);
+      else if (this.s.room.level < 16) this.toast("전파 탐지기는 아직 지급되지 않았습니다", 2);
       else if (this.panel < 0) this.toast("전파 탐지기는 관찰(E) 중에만 쓸 수 있습니다", 2);
       else if (this.radioCharges <= 0) this.toast("이번 교시 전파 탐지기 횟수를 다 썼습니다", 2);
       else {
@@ -559,7 +562,8 @@ export class ExamScene {
       // 머리(스프라이트 위쪽 1/4)가 조준점에 가장 가까운 학생
       const hx = fx, hy = fy - h * 0.72;
       const d = Math.hypot(W / 2 - hx, (H / 2 - hy) * 0.6);
-      if (Math.abs(W / 2 - hx) < Math.max(10, w * 0.32) && d < bz) { bz = d; best = st.i; }
+      const tol = this.touchMemo ? 0.5 : 0.32;   // 휴대폰은 조준을 너그럽게
+      if (Math.abs(W / 2 - hx) < Math.max(10, w * tol) && d < bz) { bz = d; best = st.i; }
     }
     return best;
   }
@@ -726,7 +730,12 @@ export class ExamScene {
       if (it.kind === "aide") drawProctor(sg, this.t);
       else if (it.kind === "walk") drawStanding(sg, it.st, this.t);
       else if (it.st.status !== "seated") drawEmptySeat(sg);
-      else if (this.cam.z > it.st.z + 0.15) drawStudentBack(sg, it.st, { t: this.t, ledVisible: false, lights: local });   // 학생은 칠판을 보고 앉아 있음
+      else if (this.cam.z > it.st.z + 0.15 || this.sideView(it.st)) {
+        // 학생은 칠판을 보고 앉아 있음: 뒤나 옆에서 보면 뒷모습(옆에서는 옆얼굴)
+        const p0 = toCam([it.st.x, 0, it.st.z], this.cam), p1 = toCam([it.st.x, 0, it.st.z - 0.5], this.cam);
+        const profile = this.cam.z > it.st.z + 0.15 || p1[2] <= 0.05 ? 0 : Math.sign(p1[0] / p1[2] - p0[0] / p0[2]);
+        drawStudentBack(sg, it.st, { t: this.t, ledVisible: false, lights: local, profile });
+      }
       else drawStudent(sg, it.st, { t: this.t, ledVisible: true, lights: local });
       const sc = (SPX * F) / c[2];
       const [fx, fy] = proj(c);
@@ -762,10 +771,12 @@ export class ExamScene {
         g.fillRect(x0, y1, L, 1); g.fillRect(x0, y1 - L, 1, L);
         g.fillRect(x1 - L, y1, L + 1, 1); g.fillRect(x1, y1 - L, 1, L + 1);
         const d = this.dist(st);
-        const txt = !st.observed ? "[E] 관찰" : d <= ACCUSE_RANGE ? "[F] 적발  [E] 닫기" : "가까이 가면 [F] 적발";
+        const touch = this.touchMemo;
+        const txt = !st.observed ? (touch ? "관찰 버튼" : "[E] 관찰") : d <= ACCUSE_RANGE ? (touch ? "적발 버튼 · 관찰 버튼으로 닫기" : "[F] 적발  [E] 닫기") : (touch ? "가까이 가면 적발" : "가까이 가면 [F] 적발");
         g.font = KR(12);
         const lw = Math.ceil(g.measureText(`${st.seat}번 ${txt}`).width) + 8;
-        label(g, `${st.seat}번 ${txt}`, Math.max(4, Math.min(W - lw - 4, Math.round(fx - lw / 2))), Math.min(H - 20, y1 + 4), { font: KR(12), color: COLORS.accent });   // 얼굴을 가리지 않게 아래에
+        const ly = this.panel >= 0 ? 42 : Math.min(H - 20, y1 + 4);   // 패널이 열려 있으면 위쪽에
+        label(g, `${st.seat}번 ${txt}`, Math.max(4, Math.min(W - lw - 4, Math.round(fx - lw / 2))), ly, { font: KR(12), color: COLORS.accent });
       }
     }
     if (this.panel >= 0) {
@@ -773,9 +784,14 @@ export class ExamScene {
       const blur = Math.max(0, Math.min(1, (this.dist(st) - 3) / 1.2));   // 3m보다 멀면 흐릿
       const behind = this.cam.z > st.z + 0.15;   // 뒤에서 보면 어깨 너머 관찰
       drawCloseup(g, st, this.t, 10, 166, this.t < this.thermalUntil, blur, behind);
+      if (this.outage() && this.t >= this.thermalUntil) {
+        px(g, 10, 166, 196, 96, "rgba(8,10,24,0.6)");                     // 정전: 패널도 어둡게
+        if (st.ledOn) px(g, 10 + 52 * 1.5, 166 + 23 * 1.5, 3, 3, "#ff3b30");   // LED만은 어둠 속에서 보임
+      }
       if (blur > 0) label(g, "멀어서 흐릿합니다 · 조금 더 다가가세요", 14, 248, { font: KR(11), color: COLORS.accent });
       if (this.t < this.radioUntil) this.drawRadio(g, st);
-      label(g, `${st.seat}번 ${this.cam.z > st.z + 0.15 ? "어깨 너머 " : ""}관찰 중 · T 열화상 ${this.thermalCharges}회${this.s.room.level >= 16 ? ` · R 전파 ${this.radioCharges}회` : ""}`, 8, 150, { font: KR(12), bg: "none", color: COLORS.chalk });
+      const k = (key: string, name: string) => (this.touchMemo ? name : `${key} ${name}`);
+      label(g, `${st.seat}번 ${this.cam.z > st.z + 0.15 ? "어깨 너머 " : ""}관찰 중 · ${k("T", "열화상")} ${this.thermalCharges}회${this.s.room.level >= 16 ? ` · ${k("R", "전파")} ${this.radioCharges}회` : ""}`, 8, 150, { font: KR(12), bg: "none", color: COLORS.chalk });
     }
   }
 
@@ -819,9 +835,9 @@ export class ExamScene {
     if (this.s.period === 2 && this.t < 10) label(g, `듣기평가 ${Math.ceil(10 - this.t)}초 전 · 지켜볼 자리를 잡으세요 (Shift 까치발)`, 70, 112, { font: KR(12), color: COLORS.accent });
     if (this.listening()) {
       const lines = ["[방송] 지금부터 영어 듣기평가를 시작합니다.", "감독관은 듣기평가 동안 이동을 자제해 주십시오."];
-      px(g, 10, H - 58, 330, 44, "rgba(16,22,20,0.92)"); px(g, 10, H - 58, 3, 44, COLORS.accent);
+      px(g, 75, 54, 330, 44, "rgba(16,22,20,0.92)"); px(g, 75, 54, 3, 44, COLORS.accent);   // 위쪽 (조준 라벨을 덮지 않게)
       g.font = KR(13); g.textBaseline = "top"; g.fillStyle = COLORS.chalk;
-      g.fillText(lines[0], 20, H - 53); g.fillText(lines[1], 20, H - 34);
+      g.fillText(lines[0], 85, 59); g.fillText(lines[1], 85, 78);
       label(g, `듣기평가 ${Math.ceil(10 + LISTENING_SECONDS - this.t)}초`, 110, 20, { font: KR(11), color: COLORS.accent });
     }
     if (this.collectT > 0) label(g, `답안지 회수 중 ${Math.ceil(this.collectT)}초 · 아직 펜을 움직이는 학생이 있으면 관찰 후 F`, 50, 112, { font: KR(12), color: COLORS.accent });
@@ -883,6 +899,17 @@ export class ExamScene {
     g.fillStyle = COLORS.chalk; g.fillText(lines[0], 76, H - 53); g.fillText(lines[1], 20, H - 34);
   }
 
+  /** 휴대폰이면 키보드 안내를 버튼 안내로 바꿈 */
+  private ui(text: string): string {
+    if (!this.touchUi.length && !this.touchMemo) return text;
+    return text
+      .replace("WASD로 걷고, 마우스로 고개를 돌립니다. 화면을 클릭하면 마우스가 고정됩니다.", "화면 왼쪽을 끌면 걷고, 오른쪽을 끌면 고개를 돌립니다.")
+      .replace(/E로 관찰/g, "관찰 버튼으로 관찰").replace(/F로 적발/g, "적발 버튼으로 적발").replace(/관찰\(E\)/g, "관찰").replace(/ F로 /g, " 적발 버튼으로 ")
+      .replace("Q를 누르면", "명부 버튼을 누르면").replace("Tab을 누르면", "CCTV 버튼을 누르면")
+      .replace("클릭하거나 Space를 누르면", "화면을 누르면").replace(/\(Shift 까치발\)/g, "");
+  }
+  touchMemo = false;
+
   private renderMemo(g: Ctx): void {
     px(g, 0, 0, W, H, "rgba(0,0,0,0.55)");
     const x = 70, y = 20, w = 340, h = 230;
@@ -921,7 +948,7 @@ export class ExamScene {
         if (u.length > 48) g.fillText(u.slice(48, 96), x + 46, yy + 14);
       }
       g.font = KR(12); g.fillStyle = "#7d776b";
-      g.fillText("클릭하거나 Space를 누르면 감독으로 돌아갑니다", x + 14, y + h - 22);
+      g.fillText(this.ui("클릭하거나 Space를 누르면 감독으로 돌아갑니다"), x + 14, y + h - 22);
       return;
     }
     g.font = KR(16); g.fillStyle = COLORS.navy;
@@ -939,7 +966,7 @@ export class ExamScene {
     for (const para of this.memoPages.slice(1)) {
       px(g, x + 12, yy + 5, 4, 4, COLORS.alert);
       g.fillStyle = COLORS.ink;   // 글머리 점 색이 본문에 번지지 않게
-      for (const line of wrapText(g, para, w - 40)) {
+      for (const line of wrapText(g, this.ui(para), w - 40)) {
         g.fillText(line, x + 22, yy);
         yy += lh;
       }
@@ -952,6 +979,6 @@ export class ExamScene {
       g.fillText("→ 뒷장에 감독관 수첩 메모가 있습니다", x + 14, y + h - 40);
     }
     g.font = KR(12); g.fillStyle = "#7d776b";
-    g.fillText("클릭하거나 Space를 누르면 감독을 시작합니다", x + 14, y + h - 22);
+    g.fillText(this.ui("클릭하거나 Space를 누르면 감독을 시작합니다"), x + 14, y + h - 22);
   }
 }

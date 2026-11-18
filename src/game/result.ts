@@ -171,7 +171,7 @@ export class ResultScene {
       if (k < 6) { const dx = 22 + c * 40 + 4 + k * 4, dy = 68 + r * 32 + 19; px(g, dx - 1, dy - 1, 5, 5, "#3a2a20"); px(g, dx, dy, 3, 3, a.near ? "#7fd18c" : "#ffffff"); }   // 흰 점 = 못 본 행동, 초록 = 가까이서 봄
     }
     g.font = KR(11); g.fillStyle = "#7d776b";
-    g.fillText("주황 적발 · 파랑 보관 · 빨강 놓침 · 빗금 오인 · 흰 점 못 본 행동", 22, 194);
+    g.fillText("주황 적발 · 파랑 보관 · 빨강 놓침 · 빗금 오인", 22, 190); g.fillText("흰 점 못 본 행동 · 초록 점 가까이서 본 행동", 22, 201);
 
     // 통계
     const sx = 236;
@@ -207,12 +207,14 @@ export class ResultScene {
     }
     // 공개: 놓친 학생 / 오인
     let y = 145;
-    const BOTTOM = 226;            // 버튼(232) 위까지만
+    const BOTTOM = 214;            // "외 n명" 줄과 버튼(232) 위까지만
     const box = (title: string, body: string, color: string, bg: string) => {
       g.font = KR(11);
       const room = Math.floor((BOTTOM - y - 18) / 13);
       if (room < 1) return;        // 자리가 없으면 그리지 않음
-      const lines = wrapText(g, body, 214).slice(0, Math.min(3, room));
+      let lines = wrapText(g, body, 214);
+      const cap = Math.min(3, room);
+      if (lines.length > cap) { lines = lines.slice(0, cap); lines[cap - 1] = lines[cap - 1].replace(/.{2}$/, "…"); }
       const hgt = 18 + lines.length * 13;
       px(g, sx, y, 226, hgt, bg); px(g, sx, y, 3, hgt, color);
       g.font = KR(12); g.fillStyle = color; g.fillText(title, sx + 8, y + 3);
@@ -225,8 +227,10 @@ export class ResultScene {
       const acts = s.acts.filter((a) => a.seat === m.seat);
       const seen = acts.filter((a) => a.near).length;
       const why = acts.length ? ` (행동 ${acts.length}번 중 가까이서 본 건 ${seen}번)` : "";
-      box(`놓친 학생 · ${m.seat}번 · ${m.cheat!.name}`, m.cheat!.hint + why, "#9c2d23", "#f7e3df");
+      box(`놓친 학생 · ${m.seat}번 · ${m.cheat!.name}`, why.trim() + " " + m.cheat!.hint, "#9c2d23", "#f7e3df");
     }
+    const shown = Math.min(2, d.missed.length);
+    if (d.missed.length > shown) { g.font = KR(11); g.fillStyle = "#9c2d23"; g.fillText(`놓친 학생 외 ${d.missed.length - shown}명 더 (수첩에 기록됨)`, sx, Math.min(y + 2, 218)); }
     for (const w of d.wrong.slice(0, Math.max(0, 2 - d.missed.length))) {
       const reason = (w.lastHabit && HABIT_NAME[w.lastHabit]) || w.habits.map((h) => HABIT_NAME[h]).filter(Boolean)[0] || "평범한 행동";
       const byHint = s.aideHintSeats.includes(w.seat);
@@ -239,7 +243,7 @@ export class ResultScene {
     // 왼쪽 아래 (폭 205px 안에서 줄바꿈)
     g.font = KR(11); g.fillStyle = "#7d776b";
     wrapText(g, "적발자 처분: 당해 시험 무효. 무선기기 등 중대 행위는 다음 해 응시 자격 정지", 205)
-      .slice(0, 2).forEach((l, i) => g.fillText(l, 22, 206 + i * 11));
+      .slice(0, 2).forEach((l, i) => g.fillText(l, 22, 213 + i * 11));
     if (d.newNotes.length) {
       if (Math.floor(this.t * 2) % 2) { px(g, 22, 231, 30, 13, COLORS.accent); g.font = PIX(8); g.fillStyle = COLORS.bg; g.fillText("NEW", 26, 234); }
       g.font = KR(12); g.fillStyle = COLORS.ink;

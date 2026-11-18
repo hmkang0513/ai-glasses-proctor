@@ -24,6 +24,25 @@ const input = new Input(canvas);
 const save = loadSave();
 unlockAudio();
 
+// 휴대폰 버튼 (화면 밖). 시험 장면이 정한 목록이 바뀔 때만 다시 그림
+const touchbar = document.getElementById("touchbar") as HTMLDivElement;
+let touchbarKey = "";
+function syncTouchbar(): void {
+  const list = (scene as unknown as { touchUi?: Array<{ code: string; label: string }> }).touchUi ?? [];
+  const key = input.touchMode ? list.map((b) => b.code + b.label).join("|") : "";
+  if (key === touchbarKey) return;
+  touchbarKey = key;
+  touchbar.hidden = !key;
+  touchbar.innerHTML = "";
+  for (const b of input.touchMode ? list : []) {
+    const el = document.createElement("button");
+    el.textContent = b.label;
+    if (b.code === "KeyE" || b.code === "KeyF") el.className = "main";
+    el.addEventListener("pointerdown", (e) => { e.preventDefault(); input.press(b.code); });
+    touchbar.appendChild(el);
+  }
+}
+
 function fit(): void {
   const fitScale = Math.min(window.innerWidth / W, window.innerHeight / H);
   const s = fitScale >= 2 ? Math.floor(fitScale) : fitScale;   // 큰 화면은 정수 배율, 휴대폰은 꽉 차게
@@ -79,8 +98,10 @@ function frame(now: number): void {
   const dt = Math.min(0.05, (now - last) / 1000);
   last = now;
   input.touchButtons = [];
+  input.touchControls = false;
   scene.update(dt, input);
   scene.render(g);
+  syncTouchbar();
   input.endFrame();
   requestAnimationFrame(frame);
 }
