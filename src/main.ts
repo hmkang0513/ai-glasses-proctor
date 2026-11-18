@@ -25,7 +25,8 @@ const save = loadSave();
 unlockAudio();
 
 function fit(): void {
-  const s = Math.max(1, Math.floor(Math.min(window.innerWidth / W, window.innerHeight / H)));
+  const fitScale = Math.min(window.innerWidth / W, window.innerHeight / H);
+  const s = fitScale >= 2 ? Math.floor(fitScale) : fitScale;   // 큰 화면은 정수 배율, 휴대폰은 꽉 차게
   canvas.style.width = `${W * s}px`;
   canvas.style.height = `${H * s}px`;
 }
@@ -77,6 +78,7 @@ let last = performance.now();
 function frame(now: number): void {
   const dt = Math.min(0.05, (now - last) / 1000);
   last = now;
+  input.touchButtons = [];
   scene.update(dt, input);
   scene.render(g);
   input.endFrame();

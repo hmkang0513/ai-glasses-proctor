@@ -1,9 +1,10 @@
-/* 화면 전체를 검은 바탕으로 두고, 480×270 캔버스를 정수배로 키운다 */
+/* 화면 전체를 검은 바탕으로 두고, 480×270 캔버스를 화면에 맞게 키운다 */
 html, body {
   margin: 0;
   height: 100%;
   background: #0b0f0e;
   overflow: hidden;
+  overscroll-behavior: none;
 }
 body {
   display: grid;
@@ -14,4 +15,21 @@ body {
   image-rendering: crisp-edges;
   display: block;
   cursor: crosshair;
+  touch-action: none;           /* 휴대폰에서 끌어도 페이지가 움직이지 않게 */
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+/* 휴대폰을 세로로 들면 가로로 돌리라고 안내 */
+@media (pointer: coarse) and (orientation: portrait) {
+  body::after {
+    content: "가로로 돌리면 더 크게 보입니다";
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: max(24px, env(safe-area-inset-bottom, 0px));
+    text-align: center;
+    color: #9aa69f;
+    font: 14px "Do Hyeon", sans-serif;
+  }
 }

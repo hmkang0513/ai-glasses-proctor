@@ -13,6 +13,7 @@ import { SPR_H, SPR_W, drawEmptySeat, drawProctor, drawStanding, drawStudent } f
 import { COLX, ROOM_D, ROOM_W, ROWZ, isCheating, type Student } from "../world/student";
 import { drawCloseup } from "../ui/closeup";
 import { CHEAT_BY_ID } from "../data/cheats";
+import type { TouchButton } from "../core/input";
 import { play, toggleMute, type SoundKind } from "../core/audio";
 import { cctvGlitch, type Layer } from "../render/effects";
 import type { Session } from "./session";
@@ -54,6 +55,8 @@ export class ExamScene {
   radioCharges = 2;
   radioUntil = -1;
   radioExplained = false;
+  touchUi: TouchButton[] = [];   // 휴대폰 화면 버튼
+  stick: Input["stick"] = null;
   pre = 0;                       // 1교시 전 시계 확인 남은 시간             // 0 = 명부, 1~ = 감독관 수첩 메모
   ended = false;
   endReason: "time" | "allCaught" | "replaced" = "time";
@@ -130,6 +133,35 @@ export class ExamScene {
     if (this.s.period === 0 && early.length) {
       this.earlyExit = early.map((x) => x.i);
       this.earlyAt = 70 + r() * 60;          // 정해진 퇴실 시각은 없음 (수능에서 확인 안 됨)
+    }
+  }
+
+  /** 휴대폰 화면 버튼 (오른쪽 아래 두 줄) */
+  private buildTouchUi(): TouchButton[] {
+    const list: Array<[string, string]> = [["KeyE", "관찰"], ["KeyF", "적발"], ["KeyT", "열화상"]];
+    if (this.s.room.level >= 16) list.push(["KeyR", "전파"]);
+    list.push(["Tab", this.mode === "cctv" ? "교실" : "CCTV"], ["KeyQ", "명부"]);
+    return list.map(([code, label], k) => ({ code, label, x: 404 + (k % 2) * 38, y: 146 + Math.floor(k / 2) * 30, w: 34, h: 26 }));
+  }
+
+  private renderTouchUi(g: Ctx): void {
+    for (const b of this.touchUi) {
+      px(g, b.x, b.y, b.w, b.h, "rgba(16,22,20,0.75)");
+      g.strokeStyle = COLORS.accent; g.lineWidth = 1; g.strokeRect(b.x + 0.5, b.y + 0.5, b.w - 1, b.h - 1);
+      g.font = KR(11); g.fillStyle = COLORS.chalk; g.textBaseline = "top";
+      g.fillText(b.label, b.x + b.w / 2 - g.measureText(b.label).width / 2, b.y + 7);
+    }
+    if (this.touchUi.length && this.mode === "fp") {
+      // 조이스틱 자리 안내 / 누르고 있는 동안 위치
+      const st = this.stick;
+      g.strokeStyle = "rgba(233,230,218,0.35)"; g.lineWidth = 1;
+      if (st) {
+        g.beginPath(); g.arc(st.ox, st.oy, 18, 0, Math.PI * 2); g.stroke();
+        const dx = Math.max(-18, Math.min(18, st.x - st.ox)), dy = Math.max(-18, Math.min(18, st.y - st.oy));
+        px(g, st.ox + dx - 4, st.oy + dy - 4, 8, 8, "rgba(240,181,74,0.8)");
+      } else if (this.t < 10) {
+        label(g, "왼쪽을 끌면 걷기 · 오른쪽을 끌면 고개 돌리기", 130, 30, { font: KR(11) });
+      }
     }
   }
 
@@ -264,6 +296,10 @@ export class ExamScene {
   update(dt: number, inp: Input): void {
     if (this.ended) return;
     this.rt += dt;
+    // 휴대폰: 화면 버튼 등록 (명부를 보는 중이면 터치는 닫기용)
+    this.touchUi = inp.touchMode && !this.memoOpen ? this.buildTouchUi() : [];
+    inp.touchButtons = this.touchUi;
+    this.stick = inp.stick;
     if (this.glitch) { this.glitch.update(dt); if (this.glitch.fx.done()) this.glitch = null; }
     if (inp.hit("KeyM")) this.toast(toggleMute() ? "소리 끔" : "소리 켬", 1.5);
     if (inp.hit("KeyQ")) {
@@ -564,6 +600,7 @@ export class ExamScene {
     else this.renderCctv(g);
     if (this.glitch) this.glitch.draw(g);
     this.renderHud(g);
+    this.renderTouchUi(g);
     if (this.memoOpen) this.renderMemo(g);
   }
 
@@ -708,7 +745,7 @@ export class ExamScene {
       if (fill > 0) px(g, W - 58 + k * 17, 9, Math.round(14 * fill), 10, COLORS.alert);
     }
     if (this.mode === "fp" && !this.memoOpen && this.t < 6 && this.pre <= 0 && this.s.period === 0)
-      label(g, "화면 클릭 → 마우스 고정 · Q 명부 보기", W / 2 - 100, 132, { font: KR(12) });
+      if (!this.touchUi.length) label(g, "화면 클릭 → 마우스 고정 · Q 명부 보기", W / 2 - 100, 132, { font: KR(12) });
     // 정전 방송
     this.renderOutage(g);
     // 토스트
