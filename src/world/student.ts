@@ -27,6 +27,7 @@ export interface Student {
   group: number;       // 집단 수법 묶음 번호 (-1 없음)
   habits: Pose[];      // 무고한 습관 프로필 (고정)
   timid: boolean;
+  lastStretchAt: number;   // 마지막 기지개 시각 (너무 자주 만세하지 않게)
   skipGlanceUntil: number;   // 이 시각 전에는 흘끗 없이 바로 행동      // 소심한 무고 학생: 눈이 마주치면 움찔하지만 바로 다시 필기
 
   // 진행 상태

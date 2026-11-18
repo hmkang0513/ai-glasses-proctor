@@ -79,7 +79,7 @@ function blankStudent(i: number, r: Rng): Student {
     i, seat: i + 1, x: COLX[i % 5], z: ROWZ[Math.floor(i / 5)],
     hair: pick(r, HAIR), shirt: pick(r, SHIRT), skin: pick(r, SKIN), longHair: r() < 0.4,
     glasses: null, watch: "none", alumnus: null,
-    cheat: null, aiGen: 0, partner: -1, group: -1, habits: [], timid: false, skipGlanceUntil: -1,
+    cheat: null, aiGen: 0, partner: -1, group: -1, habits: [], timid: false, lastStretchAt: -99, skipGlanceUntil: -1,
     pose: "write", loopIdx: 0, stepT: 0, acting: false, habitPose: null, habitT: 0, lastHabit: null,
     nextCheatAt: 0, nextHabitAt: 0, combos: 0, heatUntil: -1, ledOn: false,
     observed: false, stareT: 0, stareComplained: false,
