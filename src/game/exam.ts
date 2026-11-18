@@ -937,6 +937,7 @@ export class ExamScene {
           const id = isCheating(st) ? st.cheat!.id : "";
           const fresh = n[1] === "#f0b54a" && id && !this.s.save.notebook.includes(id) && !this.newSeen.has(id);
           if (fresh) { this.newSeen.add(id); play("page", 0, 1, false); }
+          if (n[1] === "#f0b54a" && !this.s.seenClues.some((c) => c.seat === st.seat && c.text === n[0])) this.s.seenClues.push({ seat: st.seat, period: this.s.period, text: n[0] });
           const isNew = fresh || (this.notice.seat === st.seat && this.notice.isNew && this.notice.text === n[0]);
           this.notice = { seat: st.seat, text: n[0], until: this.rt + 2.5, color: n[1], isNew };
         }

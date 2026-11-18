@@ -26,6 +26,7 @@ export interface Session {
   replaced: boolean;         // 민원 가득 → 감독 교체
   aideHintSeats: number[];   // 부감독 헛기침 힌트가 가리킨 자리
   marked: number[];          // 플레이어가 의심 표시(Z)한 자리
+  seenClues: Array<{ seat: number; period: number; text: string }>;   // 관찰 중 본 단서 문구 (쉬는 시간 돌아보기)
   path: Array<[number, number, number]>;   // 감독관 동선 [교시, x, z] (0.5초마다)
   acts: Array<{ seat: number; period: number; t: number; near: boolean }>;   // 부정행위 동작 시작 순간
   daily: string | null;      // 오늘의 시험실 날짜 키 (YYYY-MM-DD)
@@ -54,6 +55,6 @@ export function newSession(save: SaveData, levelOverride?: number, attempt = 0, 
     room, save, r: makeRng(room.seed ^ 0x5eed),
     period: 0, complaints: 0, warningUsed: false,
     catches: [], gateHeld: [], gateEjected: [], gateWrong: [], smuggled: [],
-    replaced: false, aideHintSeats: [], marked: [], path: [], acts: [], daily, startedAt: performance.now(),
+    replaced: false, aideHintSeats: [], marked: [], seenClues: [], path: [], acts: [], daily, startedAt: performance.now(),
   };
 }
