@@ -73,7 +73,7 @@ function blankStudent(i: number, r: Rng): Student {
     i, seat: i + 1, x: COLX[i % 5], z: ROWZ[Math.floor(i / 5)],
     hair: pick(r, HAIR), shirt: pick(r, SHIRT), skin: pick(r, SKIN), longHair: r() < 0.4,
     glasses: null, watch: "none", alumnus: null,
-    cheat: null, aiGen: 0, partner: -1, group: -1, habits: [], timid: false,
+    cheat: null, aiGen: 0, partner: -1, group: -1, habits: [], timid: false, skipGlanceUntil: -1,
     pose: "write", loopIdx: 0, stepT: 0, acting: false, habitPose: null, habitT: 0, lastHabit: null,
     nextCheatAt: 0, nextHabitAt: 0, combos: 0, heatUntil: -1, ledOn: false,
     observed: false, stareT: 0, stareComplained: false,
@@ -228,7 +228,7 @@ export function buildRoom(level: number, seed = level * 7919 + 13, alumnus: Alum
   for (const s of students) if (s.cheat) s.habits = [pick(r, ["think", "stretch", "drink"] as Pose[])];
   for (const s of students) if (!s.cheat && r() < 0.3) s.habits.push("glance");   // 평범한 학생은 가끔만
   // 소심한 무고 학생 1~3명 (눈이 마주치면 움찔 → 움찔만으로는 범인을 확정할 수 없게)
-  for (const s of shuffle(r, students.filter((x) => !x.cheat)).slice(0, randInt(r, 1, 3))) { s.timid = true; if (!s.habits.includes("glance")) s.habits.push("glance"); }
+  for (const s of shuffle(r, students.filter((x) => !x.cheat)).slice(0, Math.max(1, Math.min(4, students.filter((x) => x.cheat).length)))) { s.timid = true; if (!s.habits.includes("glance")) s.habits.push("glance"); }
   // 2회차 미끼: 검은 뿔테 학생은 안경을 자주 고쳐 씀
   if (level === 2) {
     const d = students.find((s) => !s.cheat && s.glasses === GSTYLES[3]);

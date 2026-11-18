@@ -53,6 +53,7 @@ export class ExamScene {
   pathT = 0;
   prevActing: boolean[] = [];
   lastAct: number[] = [];                 // 학생별 마지막 부정행위 동작 시각
+  glanceRoll: boolean[] = [];              // 이번 흘끗에서 움찔할지
   radioCharges = 2;
   radioUntil = -1;
   radioExplained = false;
@@ -150,7 +151,7 @@ export class ExamScene {
   /** 소리 자막: 들린 방향 쪽 화면 가장자리에 화살표와 이름 */
   private renderCaptions(g: Ctx): void {
     this.captions = this.captions.filter((c) => c.until > this.rt);
-    this.captions.slice(-4).forEach((c, n) => {
+    this.captions.slice(-3).forEach((c, n) => {
       const behind = Math.abs(c.a) > Math.PI / 2;
       const arrow = behind ? "▼" : c.a < -0.25 ? "◀" : c.a > 0.25 ? "▶" : "▲";
       const text = `${arrow} ${c.text}${behind ? " (뒤)" : ""}`;
@@ -202,23 +203,27 @@ export class ExamScene {
 
   /** 동작이 바뀔 때 나는 소리 단서 */
   private soundFor(st: Student): void {
+    const prev = this.prevPose[st.i];
     // 부정행위 동작이 시작된 순간 기록 (결과 화면 "그때 무슨 일이")
     if (st.acting && !this.prevActing[st.i] && isCheating(st))
       this.s.acts.push({ seat: st.seat, period: this.s.period, t: this.t, near: this.mode === "fp" && this.dist(st) < OBSERVE_RANGE && this.watched(st) });
-    const aimed = (this.target === st.i || this.panel === st.i) && this.mode === "fp";
+    // 눈 마주침: 2~3m에서 조준 중일 때만 (2m 안은 원래 멈추고, 3m 밖은 단서가 보이는 거리)
+    const aimed = (this.target === st.i || this.panel === st.i) && this.mode === "fp" && this.dist(st) < 3 && this.s.room.level > 1;
     const glancing = st.pose === "glance";
-    if (aimed && glancing && isCheating(st)) {
-      // 부정행위자: 급히 고개를 숙이고 4초 동안 손이 굳음
+    if (glancing && prev !== "glance") this.glanceRoll[st.i] = this.s.r() < 0.6;   // 흘끗 한 번에 한 번만 판정
+    const late = this.s.room.level >= 50;                                             // 50회차부터 굳는 시간이 겹침
+    if (aimed && glancing && this.glanceRoll[st.i] && isCheating(st)) {
+      // 부정행위자: 급히 고개를 숙이고 손이 굳음
       st.acting = false; st.loopIdx = 0;
-      st.habitPose = "flinch"; st.pose = "flinch"; st.habitT = 4;
+      st.habitPose = "flinch"; st.pose = "flinch"; st.habitT = late ? 1.5 + this.s.r() * 2.5 : 4;
       st.nextCheatAt = Math.max(st.nextCheatAt, this.t + 5);
-    } else if (aimed && glancing && st.timid && st.habitPose === "glance") {
+      st.skipGlanceUntil = this.t + 12;   // 다음 행동은 흘끗 없이 바로 (움찔만 반복되지 않게)
+    } else if (aimed && glancing && this.glanceRoll[st.i] && st.timid && st.habitPose === "glance") {
       // 소심한 무고 학생: 움찔했다가 바로 다시 필기
-      st.habitPose = "flinch"; st.pose = "flinch"; st.habitT = 0.6;
+      st.habitPose = "flinch"; st.pose = "flinch"; st.habitT = late ? 0.6 + this.s.r() * 2.4 : 0.6;
     }
     this.prevActing[st.i] = st.acting;
     if (st.acting) this.lastAct[st.i] = this.t;
-    const prev = this.prevPose[st.i];
     this.prevPose[st.i] = st.pose;
     if (prev === st.pose || st.status !== "seated") return;
     const ch = isCheating(st) ? st.cheat! : null;
@@ -386,7 +391,7 @@ export class ExamScene {
       t: this.t, dt, r: this.s.r, level: this.s.room.level,
       dist: (st: Student) => this.dist(st),
       watched: (st: Student) => this.watched(st),
-      freezeRange: this.mode === "cctv" ? 3.3 : FREEZE_RANGE, outage: this.outage(), lastMinutes: this.lastMinutes(),
+      freezeRange: this.mode === "cctv" ? 3.3 : this.tiptoe ? 1.4 : FREEZE_RANGE, outage: this.outage(), lastMinutes: this.lastMinutes(),
     };
     for (const st of this.students) {
       updateStudent(st, ctx);
@@ -413,9 +418,10 @@ export class ExamScene {
 
   /** 3교시 앞부분: 영어 듣기평가 방송 중 */
   listening(): boolean {
-    return this.s.period === 2 && this.t < LISTENING_SECONDS;
+    return this.s.period === 2 && this.t >= 10 && this.t < 10 + LISTENING_SECONDS;   // 앞 10초는 자리 잡을 준비 시간
   }
   walkNoise = 0;
+  tiptoe = false;
   lastStepComplaint = -99;
 
   private updateFp(dt: number, inp: Input): void {
@@ -432,13 +438,14 @@ export class ExamScene {
     const len = Math.hypot(mx, mz);
     this.moving = len > 0;
     if (len > 0) {
-      const step = (WALK * dt) / len;
+      this.tiptoe = inp.isDown("ShiftLeft") || inp.isDown("ShiftRight");
+      const step = ((this.tiptoe ? WALK * 0.45 : WALK) * dt) / len;
       this.tryMove(this.cam.x + mx * step, this.cam.z);
       this.tryMove(this.cam.x, this.cam.z + mz * step);
     }
     this.cam.y = 1.55 + (this.moving ? Math.sin(this.t * 9) * 0.012 : 0);
     // 듣기평가 중 걸으면 발소리 (게임 설정: 실제 이동 금지 규정은 확인 못 함)
-    if (this.listening() && this.moving) {
+    if (this.listening() && this.moving && !this.tiptoe) {
       this.walkNoise += dt;
       if (this.walkNoise > 1.5 && this.t - this.lastStepComplaint > 6) {
         this.lastStepComplaint = this.t; this.walkNoise = 0;
@@ -635,7 +642,7 @@ export class ExamScene {
     const lines = ["감독 명부 · " + `${this.s.room.school} 제${this.s.room.roomNo}시험실`];
     if (this.s.room.tutorial.length) lines.push(...this.s.room.tutorial.slice(1));
     lines.push(...this.s.room.notes);
-    lines.push(`조작: WASD 이동 · 마우스 시선 · E 관찰 · F 적발 · T 열화상${this.s.room.level >= 16 ? " · R 전파 탐지" : ""} · Tab CCTV · Q 명부 · M 소리 · C 소리 자막`);
+    lines.push(`조작: WASD 이동(Shift 까치발) · 마우스 시선 · E 관찰 · F 적발 · T 열화상${this.s.room.level >= 16 ? " · R 전파 탐지" : ""} · Tab CCTV · Q 명부 · M 소리 · C 소리 자막`);
     return lines;
   }
 
@@ -733,7 +740,9 @@ export class ExamScene {
     }
     if (this.panel >= 0) {
       const st = this.students[this.panel];
-      drawCloseup(g, st, this.t, 10, 166, this.t < this.thermalUntil);
+      const blur = Math.max(0, Math.min(1, (this.dist(st) - 3) / 1.2));   // 3m보다 멀면 흐릿
+      drawCloseup(g, st, this.t, 10, 166, this.t < this.thermalUntil, blur);
+      if (blur > 0) label(g, "멀어서 흐릿합니다 · 조금 더 다가가세요", 14, 248, { font: KR(11), color: COLORS.accent });
       if (this.t < this.radioUntil) this.drawRadio(g, st);
       label(g, `${st.seat}번 관찰 중 · T 열화상 ${this.thermalCharges}회${this.s.room.level >= 16 ? ` · R 전파 ${this.radioCharges}회` : ""}`, 8, 150, { font: KR(12), bg: "none", color: COLORS.chalk });
     }
@@ -776,12 +785,13 @@ export class ExamScene {
     const remain = Math.max(0, this.periodLen - this.t);
     const head = this.pre > 0 ? `시계 확인  08:${String(30 + Math.min(9, Math.floor((12 - this.pre) / 1.2))).padStart(2, "0")}` : `${p.name}  ${clockText(this.s.period, this.t)}`;
     label(g, head, 6, 6, { font: KR(12) });
+    if (this.s.period === 2 && this.t < 10) label(g, `듣기평가 ${Math.ceil(10 - this.t)}초 전 · 지켜볼 자리를 잡으세요 (Shift 까치발)`, 70, 112, { font: KR(12), color: COLORS.accent });
     if (this.listening()) {
       const lines = ["[방송] 지금부터 영어 듣기평가를 시작합니다.", "감독관은 듣기평가 동안 이동을 자제해 주십시오."];
       px(g, 10, H - 58, 330, 44, "rgba(16,22,20,0.92)"); px(g, 10, H - 58, 3, 44, COLORS.accent);
       g.font = KR(13); g.textBaseline = "top"; g.fillStyle = COLORS.chalk;
       g.fillText(lines[0], 20, H - 53); g.fillText(lines[1], 20, H - 34);
-      label(g, `듣기평가 ${Math.ceil(LISTENING_SECONDS - this.t)}초`, 110, 20, { font: KR(11), color: COLORS.accent });
+      label(g, `듣기평가 ${Math.ceil(10 + LISTENING_SECONDS - this.t)}초`, 110, 20, { font: KR(11), color: COLORS.accent });
     }
     if (this.pre > 0) label(g, "학생들이 시계를 책상 위에 올려 둡니다 · 스마트워치는 관찰(E) 후 F로 보관", 40, 112, { font: KR(12), color: COLORS.accent });
     // 남은 시간 막대

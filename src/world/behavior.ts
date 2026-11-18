@@ -70,9 +70,9 @@ export function updateStudent(s: Student, ctx: BehaviorCtx): void {
     }
     if (t >= s.nextCheatAt && !near && !s.habitPose) {
       s.acting = true;
-      s.loopIdx = -1;                      // 흘끗 보기부터
+      s.loopIdx = t < s.skipGlanceUntil ? 0 : -1;   // 흘끗 보기부터 (방금 움찔했으면 바로)
       s.stepT = 0;
-      s.pose = "glance";
+      s.pose = s.loopIdx < 0 ? "glance" : loop[0].pose;
       return;
     }
   }

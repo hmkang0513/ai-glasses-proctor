@@ -136,7 +136,10 @@ function drawHands(g: Ctx, s: Student, t: number): void {
 }
 
 /** 패널을 그려 넣는다 (x,y: 화면 좌표, 1.5배) */
-export function drawCloseup(g: Ctx, s: Student, t: number, x: number, y: number, thermalOn: boolean): void {
+const [lowC, lg] = makeCanvas(24, 24);
+
+/** blur 0~1: 멀수록 흐릿 (거리 줄타기) */
+export function drawCloseup(g: Ctx, s: Student, t: number, x: number, y: number, thermalOn: boolean, blur = 0): void {
   fg.clearRect(0, 0, 64, 64);
   drawFace(fg, s, t);
   if (thermalOn) thermal(fg, s, t);
@@ -144,6 +147,14 @@ export function drawCloseup(g: Ctx, s: Student, t: number, x: number, y: number,
   drawHands(hg, s, t);
   px(g, x - 3, y - 15, 2 * 96 + 10, 96 + 18, "rgba(16,22,20,0.94)");
   g.imageSmoothingEnabled = false;
-  g.drawImage(faceC, x, y, 96, 96);
-  g.drawImage(handC, x + 100, y, 96, 96);
+  for (const [c, ox] of [[faceC, 0], [handC, 100]] as const) {
+    if (blur > 0) {
+      // 해상도를 낮췄다가 키워서 작은 단서가 뭉개지게
+      const n = Math.max(12, Math.round(64 - blur * 44));
+      lowC.width = n; lowC.height = n;
+      lg.imageSmoothingEnabled = true;
+      lg.drawImage(c, 0, 0, n, n);
+      g.drawImage(lowC, x + ox, y, 96, 96);
+    } else g.drawImage(c, x + ox, y, 96, 96);
+  }
 }
