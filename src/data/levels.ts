@@ -222,7 +222,7 @@ export function buildRoom(level: number, seed = level * 7919 + 13, alumnus: Alum
         if (s.cheat?.id === "watch") s.watch = level >= 20 ? "hybrid" : "smart";
       }
       s.alumnus = { from: alumnus.level, method: alumnus.method, clean };
-      notes.push(`${s.seat}번 자리: ${alumnus.level}번째 감독 때 "${CHEAT_BY_ID[alumnus.method]?.name ?? "부정행위"}"로 적발된 학생입니다. 응시 자격 정지가 끝나 재응시했습니다.`);
+      notes.push(`${s.seat}번 자리: 예전 ${alumnus.level}번째 감독 때 "${CHEAT_BY_ID[alumnus.method]?.name ?? "부정행위"}"로 적발된 학생입니다. 몇 해가 지나 다시 수능을 봅니다.`);
     }
   }
 

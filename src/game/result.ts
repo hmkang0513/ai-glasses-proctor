@@ -30,23 +30,29 @@ export interface ResultData {
   twist: string | null;      // 결과에서 밝혀지는 반전
 }
 
-/** 수석감독관 한마디 [칭찬, 아쉬운 점(없으면 "")] */
+/** 수석감독관 한마디 [칭찬, 아쉬운 점(없으면 "")] — 상황별 여러 문장 중 지난번과 다른 것 */
 function chiefComment(d: ResultData, s: Session): [string, string] {
+  if (s.replaced) return ["오늘은 민원이 많았네요. 확실할 때만 잡아도 충분해요.", "다시 해 봅시다."];
   const caught = d.caughtExam.length + d.caughtGate.length + d.prevented.length;
   const firstT = Math.min(...s.catches.filter((c) => c.correct && c.period === 0).map((c) => c.t), 999);
   const back = s.path.some(([, , z]) => z > 9.2);
-  if (s.replaced) return ["오늘은 민원이 많았네요. 확실할 때만 잡아도 충분해요.", "다시 해 봅시다."];
-  let good = "끝까지 자리를 지켰습니다. 수고했어요.";
-  if (caught > 0 && !d.missed.length && !d.wrong.length) good = firstT < 60 ? "완벽한 감독이었습니다. 첫 적발도 1분 안! 이 교실은 안심이에요." : "완벽한 감독이었습니다. 이 교실은 안심이에요.";
-  else if (caught > 0 && firstT < 60) good = "첫 적발이 1분도 안 걸렸습니다!";
-  else if (caught > 0 && !d.wrong.length) good = "무고한 학생을 한 명도 잡지 않았습니다. 침착했어요.";
-  else if (d.prevented.length + d.caughtGate.length > 0) good = "입실 검사에서 미리 막아 냈네요.";
-  else if (back) good = "뒷줄까지 꼼꼼히 돌았네요.";
-  else if (caught > 0) good = "부정행위자를 찾아냈습니다. 잘했어요.";
   const marked = s.marked.length, real = s.marked.filter((seat) => s.room.students[seat - 1].cheat).length;
-  if (marked >= 2 && real >= 1 && good.startsWith("끝까지")) good = `의심 표시 ${marked}명 중 ${real}명이 진짜였어요. 눈썰미가 좋네요.`;
+  const pool: string[] = [];
+  if (caught > 0 && !d.missed.length && !d.wrong.length) pool.push("완벽한 감독이었습니다. 이 교실은 안심이에요.", "놓친 학생도 잘못 잡은 학생도 없어요. 깔끔했습니다.", "오늘 교실은 완벽하게 지켜 냈네요.");
+  if (caught > 0 && firstT < 60) pool.push("첫 적발이 1분도 안 걸렸습니다!", "시작하자마자 찾아냈네요. 눈이 빠릅니다.");
+  if (caught > 0 && !d.wrong.length) pool.push("무고한 학생을 한 명도 잡지 않았습니다. 침착했어요.");
+  if (d.prevented.length + d.caughtGate.length > 0) pool.push("입실 검사에서 미리 막아 냈네요.", "들어오기 전에 기기를 찾아냈어요. 든든합니다.");
+  if (marked >= 2 && real >= 1) pool.push(`의심 표시 ${marked}명 중 ${real}명이 진짜였어요. 눈썰미가 좋네요.`);
+  if (caught > 0 && back) pool.push("뒷줄까지 꼼꼼히 돌았네요.");
+  if (caught > 0) pool.push("부정행위자를 찾아냈습니다. 잘했어요.");
+  if (!pool.length) pool.push(d.wrong.length ? "끝까지 자리를 지켰습니다. 수고했어요." : "무고한 학생을 잘못 잡지 않았어요. 그것도 중요한 일이에요.", "오늘은 조용한 교실이었네요. 수고했어요.");
+  // 상황에 가장 맞는 앞쪽 문장 우선, 지난번과 같은 문장은 피함
+  const last = s.save.lastComment ?? "";
+  const good = pool.find((x) => x !== last) ?? pool[0];
+  s.save.lastComment = good;
   let tip = "";
   if (d.missed.length && !back) tip = "다음엔 뒤쪽 줄도 한 번 가 봅시다.";
+  else if (d.missed.length && !caught) tip = "머리 위 \"!\"나 H(부감독에게 묻기)를 써 보세요.";
   else if (d.missed.length) tip = "놓친 학생은 배치도의 빨간 칸이에요.";
   else if (d.wrong.length) tip = "확실할 때만 잡아도 충분합니다.";
   return [good, tip];
@@ -86,8 +92,10 @@ export class ResultScene {
   t = 0;
   btns: Btn[] = [];
 
+  chief: [string, string] = ["", ""];
   constructor(private s: Session, actions: { next: () => void; retry: () => void; title: () => void }) {
     this.data = computeResult(s);
+    this.chief = chiefComment(this.data, s);   // 한 번만 정해서 저장 (같은 문장 연속 방지)
     // 저장
     const sv = s.save;
     sv.notebook.push(...this.data.newNotes);
@@ -261,7 +269,7 @@ export class ResultScene {
     const clean = !d.missed.length && !d.wrong.length && !s.replaced;
     if (clean) {
       // 노란 메모지(살짝 기울임)에 수석감독관 손글씨
-      const [good] = chiefComment(d, s);
+      const [good] = this.chief;
       g.save(); g.translate(sx + 113, y + 32); g.rotate(-0.03);
       px(g, -110, -28, 222, 60, "#00000022"); px(g, -112, -30, 222, 60, "#f7e27a"); px(g, -112, -30, 222, 6, "#efd25a");
       g.font = KR(11); g.fillStyle = "#7a5a10"; g.fillText("수석감독관 메모", -104, -21);
@@ -271,7 +279,7 @@ export class ResultScene {
     }
     // 수석감독관 한마디: 잘한 점 먼저, 아쉬운 점은 하나만 부드럽게 (메모지를 붙였으면 생략)
     if (!clean) {
-      const [good, tip] = chiefComment(d, s);
+      const [good, tip] = this.chief;
       g.fillStyle = COLORS.navy;
       for (const [k, line] of [good, tip].filter(Boolean).entries()) {
         const text = (k === 0 ? "수석감독관: " : "") + line;

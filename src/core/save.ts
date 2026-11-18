@@ -16,6 +16,7 @@ export interface SaveData {
   alumni: Array<{ hair: string; shirt: string; skin: string; longHair: boolean; method: string; level: number }>;  // 적발한 학생 (재응시 후보)
   mode: "fp" | "cctv";
   seenTutorial: boolean;
+  lastComment?: string;   // 수석감독관 한마디 (같은 문장 연속 방지)
 }
 
 const DEFAULT: SaveData = { level: 1, notebook: [], noteMissed: [], bestGrades: {}, attempts: {}, alumni: [], daily: {}, mode: "fp", seenTutorial: false };

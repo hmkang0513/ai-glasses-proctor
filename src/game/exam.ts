@@ -99,7 +99,7 @@ export class ExamScene {
     this.spr = makeCanvas(SPR_W, SPR_H);
     this.dst = new ImageData(W, H);
     const r = s.r;
-    this.weather = s.room.level <= 5 ? "day" : (["day", "overcast", "dim"] as PresetName[])[Math.floor(r() * 3)];   // 초반은 맑은 날
+    this.weather = s.room.level <= 5 ? "day" : s.room.level <= 8 ? (r() < 0.5 ? "day" : "overcast") : (["day", "overcast", "dim"] as PresetName[])[Math.floor(r() * 3)];   // 초반은 밝게   // 초반은 맑은 날
     if (r() < s.room.outageChance) this.outageAt = 40 + r() * 80;
     // 첫 교시 시작 전 수석감독관 메모
     if (s.period === 0 && (s.room.tutorial.length || s.room.notes.length)) {
@@ -124,6 +124,7 @@ export class ExamScene {
     if (this.pre > 0) this.mode = "fp";   // 시계 확인은 교실을 돌며 직접
     // 부감독 헛기침 힌트: 교시당 1번, 정확도 약 70%, 50회차부터 없음
     if (s.room.level <= 5) this.aideHintAt = s.room.level <= 3 ? 20 + r() * 10 : 35 + r() * 10;   // 초반: 일찍, 정확하게, 반복
+    else if (s.room.level <= 9) this.aideHintAt = 50 + r() * 20;   // 6~9회차: 너무 늦지 않게
     else if (s.room.level < 50 || s.room.bribedAide) this.aideHintAt = 45 + r() * 80;
   }
 
@@ -208,7 +209,11 @@ export class ExamScene {
     play(kind, Math.sin(a), vol, Math.abs(a) > Math.PI / 2);
     // 자막: 진동음(진동·다리 떨기 같은 이름), 딸깍, 기침, 작은 말소리만
     const names: Partial<Record<SoundKind, string>> = { ...(this.collectT > 0 ? { page: "펜 소리" } : {}), buzz: "진동음", hum: "진동음", click: "딸깍", cough: "기침", whisper: "작은 말소리" };
-    if (this.captionsOn && names[kind] && vol > 0.08) this.captions.push({ text: names[kind]!, a, until: this.rt + 1.6 });
+    if (this.captionsOn && names[kind] && vol > 0.08) {
+      const same = this.captions.find((c) => c.text === names[kind] && Math.abs(c.a - a) < 0.4 && c.until > this.rt);
+      if (same) same.until = this.rt + 1.6;   // 같은 소리는 한 줄로
+      else this.captions.push({ text: names[kind]!, a, until: this.rt + 1.6 });
+    }
   }
 
   /** 동작이 바뀔 때 나는 소리 단서 */
@@ -318,6 +323,14 @@ export class ExamScene {
     return Math.hypot(st.x - this.cam.x, st.z - this.cam.z);
   }
 
+  /** 머리 위 "!" (1~5회차 1.2초, 6~8회차는 6m 안에서 0.8초) */
+  bangFor(st: Student): boolean {
+    const lv = this.s.room.level, since = this.t - (this.actStart[st.i] ?? -99);
+    if (lv <= 5) return since < 1.2;
+    if (lv <= 8) return since < 0.8 && this.dist(st) < 6;
+    return false;
+  }
+
   /** 관찰 패널에서 지금 눈에 띈 것 (단서면 주황, 평범한 행동이면 회색). 없으면 null */
   noticeFor(st: Student, behind: boolean): [string, string] | null {
     const ch = isCheating(st) ? st.cheat! : null;
@@ -348,11 +361,11 @@ export class ExamScene {
       if (ch.id === "window" && p === "window") return ["창밖만 자꾸 본다", hot];
       if (ch.id === "cough" && st.partner >= 0 && (p === "cough" || p === "finger")) return ["기침하자마자 옆 학생이 손가락을 편다", hot];
       if (ch.id === "swap" && p === "pass") return ["앞뒤 학생 손이 시험지 쪽으로 오갔다!", hot];
-      if (tl.palmNote && p !== "palm") return ["쥔 주먹 사이로 파란 잉크가 살짝 비친다", hot];
+      if (tl.palmNote && p !== "palm") return ["주먹 쥔 손가락 사이로 파란 잉크가 비친다", hot];
       if (tl.eraserNote && p !== "eraser") return ["지우개 포장지가 조금 벌어져 있다", hot];
       if (behind && tl.earpiece) return ["귀 뒤에 작은 것이 붙어 있다", hot];
       if (behind && tl.neckDevice) return ["목 뒤에 검은 것이 보인다", hot];
-      if (!behind && st.aiGen === 1 && st.glasses && p !== "glassesoff") return ["안경다리가 유난히 두껍다", hot];
+      if (st.aiGen === 1 && st.glasses && p !== "glassesoff") return [behind ? "귀에 걸린 안경다리가 유난히 두껍다" : "안경다리가 유난히 두껍다", hot];
     }
     // 무고한 행동: 안심시키는 한 줄
     const calmText: Partial<Record<string, string>> = {
@@ -538,9 +551,16 @@ export class ExamScene {
     if (inp.isDown("KeyA")) { mx -= fz; mz += fx; }
     if (this.autoWalk >= 0) {
       const st = this.students[this.autoWalk];
-      if (mx || mz || st.status !== "seated" || this.rt > this.autoWalkUntil) this.autoWalk = -1;   // 직접 움직이거나 막히면 취소
-      else if (this.dist(st) <= ACCUSE_RANGE - 0.2) { this.autoWalk = -1; this.panel = st.i; this.tryAccuse(); }
-      else { mx = st.x - this.cam.x; mz = st.z - 0.9 - this.cam.z; }   // 학생 앞쪽(칠판 쪽)으로 다가감
+      const reached = this.dist(st) <= ACCUSE_RANGE - 0.2;
+      const stuck = this.rt > this.autoWalkUntil;
+      if (mx || mz || st.status !== "seated") this.autoWalk = -1;   // 직접 움직이면 취소
+      else if (reached || (stuck && this.dist(st) <= 3.0)) { this.autoWalk = -1; this.panel = st.i; this.tryAccuse(true); }   // 책상에 막혀도 3m 안이면 처리
+      else if (stuck) { this.autoWalk = -1; this.toast("책상에 막혔습니다. 옆 통로로 돌아가세요", 2.5); }
+      else {
+        // 가까운 쪽 통로의 학생 옆으로 다가감 (같은 열 앞뒤에서 책상에 막히지 않게)
+        const side = this.cam.x >= st.x ? 1 : -1;
+        mx = st.x + side * 0.95 - this.cam.x; mz = st.z - 0.3 - this.cam.z;
+      }
     }
     const len = Math.hypot(mx, mz);
     this.moving = len > 0;
@@ -563,6 +583,8 @@ export class ExamScene {
     // 조준점에 걸린 학생
     this.target = this.pickTarget();
 
+    // 적발한 학생 패널은 놀란 표정을 잠깐 보여 준 뒤 닫음 (끝나는 중에도)
+    if (this.panel >= 0 && this.students[this.panel].status !== "seated" && this.rt >= this.panelCloseAt) this.panel = -1;
     if (this.endAt > 0) return;   // 끝나는 중에는 관찰·적발 불가
     // H: 부감독에게 묻기 — 남은 부정행위자가 있는 구역을 알려 줌 (교시당 1번)
     if (inp.hit("KeyH")) {
@@ -575,7 +597,7 @@ export class ExamScene {
           const st = left[Math.floor(this.s.r() * left.length)];
           const row = st.z < 8 ? "앞쪽 두 줄" : "뒤쪽 두 줄";
           const side = st.x < ROOM_W / 2 ? "창가 쪽" : "복도 쪽";
-          this.toast(`부감독(귓속말): ${row} ${side}이 좀 수상해요`, 4, COLORS.accent);
+          this.toast(`부감독(귓속말): ${row} ${side}이 좀 수상해요 · 묻기는 교시마다 한 번`, 4, COLORS.accent);
         }
       }
     }
@@ -585,7 +607,7 @@ export class ExamScene {
       if (i >= 0) {
         const seat = this.students[i].seat;
         if (this.marks.has(i)) { this.marks.delete(i); this.s.marked = this.s.marked.filter((x) => x !== seat); this.toast(`${seat}번 표시 지움`, 1.2); }
-        else { this.marks.add(i); if (!this.s.marked.includes(seat)) this.s.marked.push(seat); this.toast(`${seat}번 의심 표시`, 1.2); }
+        else { this.marks.add(i); if (!this.s.marked.includes(seat)) this.s.marked.push(seat); this.toast(this.s.marked.length === 1 ? `${seat}번 의심 표시 · 머리 위 메모일 뿐, 판정과는 상관없어요` : `${seat}번 의심 표시`, this.s.marked.length === 1 ? 3 : 1.2); }
       }
     }
     // E: 관찰
@@ -669,15 +691,21 @@ export class ExamScene {
     return best;
   }
 
-  private tryAccuse(): void {
+  private tryAccuse(near = false): void {
     if (this.endAt > 0 || this.s.replaced) return;   // 교체·종료가 정해진 뒤에는 적발 불가
     const idx = this.panel >= 0 ? this.panel : this.target;
     if (idx < 0) { this.toast("적발할 학생을 먼저 관찰(E)하세요", 2); return; }
     const st = this.students[idx];
     if (st.status !== "seated") return;   // 이미 나가는 중
-    if (!st.observed) { this.toast("관찰(E)한 학생만 적발할 수 있습니다", 2); return; }
-    if (this.dist(st) > ACCUSE_RANGE) {
-      if (this.mode === "fp") { this.autoWalk = st.i; this.autoWalkUntil = this.rt + 4; }   // 알아서 옆까지 걸어가 처리
+    if (!st.observed) {
+      if (this.touchMemo && this.dist(st) <= OBSERVE_RANGE) {
+        this.panel = st.i; st.observed = true; this.panelOpens++;
+        this.toast("먼저 관찰창을 열었어요. 확인한 뒤 적발을 한 번 더 누르세요", 3);
+      } else this.toast(this.touchMemo ? "관찰 버튼으로 먼저 살펴보세요" : "관찰(E)한 학생만 적발할 수 있습니다", 2);
+      return;
+    }
+    if (!near && this.dist(st) > ACCUSE_RANGE) {
+      if (this.mode === "fp") { this.autoWalk = st.i; this.autoWalkUntil = this.rt + 2.5; }   // 알아서 옆까지 걸어가 처리
       else this.toast("조금 더 가까이 가서 조용히 처리하세요", 2);
       return;
     }
@@ -857,7 +885,7 @@ export class ExamScene {
       if (left > W || left + w < 0) continue;
       bg.drawImage(sprC, left, top, w, h);
       for (const L of local) lights.push({ x: Math.round(left + (L.x + 0.5) * sc), y: Math.round(top + (L.y + 0.5) * sc), r: Math.max(3, Math.round(11 * sc * 0.6)), c: [255, 70, 50], s: 0.95 });
-      if (it.kind === "seat" && it.st.status === "seated" && this.s.room.level <= 5 && this.t - (this.actStart[it.st.i] ?? -99) < 1.2) bangs.push([fx, top + 5 * sc]);
+      if (it.kind === "seat" && it.st.status === "seated" && this.bangFor(it.st)) bangs.push([fx, top + 5 * sc]);
       // CCTV에서 표시한 학생 머리 위 표시
       if (it.kind === "seat" && this.marks.has(it.st.i) && it.st.status === "seated") { const my = Math.round(top + 5 * sc - 14); px(bg, fx - 3, my - 1, 7, 7, "#1a1414"); px(bg, fx - 2, my, 5, 5, COLORS.accent); px(bg, fx - 1, my + 1, 3, 3, "#1a1414"); }
     }

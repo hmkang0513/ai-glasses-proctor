@@ -43,7 +43,7 @@ export const DAILY_LEVEL = 20;
 export function newSession(save: SaveData, levelOverride?: number, attempt = 0, daily: string | null = null): Session {
   const level = daily ? DAILY_LEVEL : levelOverride ?? save.level;
   // 3회차 이상 지난 적발 학생 중 하나가 40% 확률로 재응시
-  const ready = save.alumni.filter((a) => a.level <= level - 3);
+  const ready = save.alumni.filter((a) => a.level <= level - 6);
   let alumnus: SaveData["alumni"][number] | null = null;
   if (!daily && ready.length && Math.random() < 0.4) {
     alumnus = ready[Math.floor(Math.random() * ready.length)];
