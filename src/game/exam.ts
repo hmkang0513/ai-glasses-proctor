@@ -7,7 +7,7 @@ import {
   PERIODS, STARE_COMPLAINT_SEC, THERMAL_CHARGES, clockText,
 } from "../data/rules";
 import { applyLight, cctvPass, type PointLight, type PresetName } from "../render/light";
-import { F, SPEAKER, drawClipboard, drawRoom, proj, quad, toCam, type Camera } from "../render/fp";
+import { F, SPEAKER, drawClipboard, drawRoom, lookFor, proj, quad, toCam, type Camera, type RoomLook } from "../render/fp";
 import { drawTopRoom, drawTopTeacher, tdX, tdY } from "../render/topdown";
 import { updateStudent } from "../world/behavior";
 import { SPR_H, SPR_W, drawEmptySeat, drawProctor, drawStanding, drawStudent, drawStudentBack } from "../world/drawStudent";
@@ -66,6 +66,7 @@ export class ExamScene {
   panelCloseAt = 0;                       // 적발 뒤 들킨 표정을 잠깐 보여 주고 닫음
   autoWalk = -1; autoWalkUntil = 0;
   closeEnough = -1;
+  look: RoomLook | undefined;               // 학교별 교실 풍경 (21회차~)
   // 반장의 제보 (11회차~, 교시당 1번, 항상 맞는 정보)
   repI = -1; repAt = -1; repState = 0; repUntil = 0;                        // 자동으로 다가간 학생: 3m 안이면 F로 처리 가능       // 멀리서 F: 그 학생 옆까지 자동으로 걸어감
   panelOpens = 0;                         // 흐릿함 안내는 처음 3번만
@@ -99,6 +100,7 @@ export class ExamScene {
 
   constructor(public s: Session, private onEnd: () => void) {
     this.mode = s.save.mode;
+    this.look = lookFor(s.room.school, s.room.level);
     for (const seat of s.marked) this.marks.add(seat - 1);   // 앞 교시의 의심 표시 이어 받기
     if (s.room.level >= 11) {
       const ok = (x: Student) => !x.cheat && !x.timid && x.status === "seated";
@@ -920,7 +922,7 @@ export class ExamScene {
     const [, bg] = this.base;
     const [sprC, sg] = this.spr;
     bg.imageSmoothingEnabled = false;
-    drawRoom(bg, this.cam);
+    drawRoom(bg, this.cam, this.look);
     // 창밖 조력자 (창문 유리 너머 그림자)
     if (this.windowPersonVisible()) {
       const z = this.students[this.windowSeat].z;
