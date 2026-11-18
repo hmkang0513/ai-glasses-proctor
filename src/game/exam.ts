@@ -99,12 +99,13 @@ export class ExamScene {
     this.spr = makeCanvas(SPR_W, SPR_H);
     this.dst = new ImageData(W, H);
     const r = s.r;
-    this.weather = s.room.level <= 5 ? "day" : s.room.level <= 8 ? (r() < 0.5 ? "day" : "overcast") : (["day", "overcast", "dim"] as PresetName[])[Math.floor(r() * 3)];   // 초반은 밝게   // 초반은 맑은 날
+    this.weather = s.room.theme === "rain" ? "overcast" : s.room.theme === "hot" ? "day" : s.room.level <= 5 ? "day" : s.room.level <= 8 ? (r() < 0.5 ? "day" : "overcast") : (["day", "overcast", "dim"] as PresetName[])[Math.floor(r() * 3)];   // 초반은 밝게   // 초반은 맑은 날
     if (r() < s.room.outageChance) this.outageAt = 40 + r() * 80;
     // 첫 교시 시작 전 수석감독관 메모
-    if (s.period === 0 && (s.room.tutorial.length || s.room.notes.length)) {
+    if (s.period === 0 && (s.room.tutorial.length || s.room.notes.length || s.goal)) {
       this.memoOpen = true;
       this.memoPages = s.room.tutorial.length ? [...s.room.tutorial, ...s.room.notes] : ["감독 명부 메모", ...s.room.notes];
+      if (s.goal) this.memoPages.push(`오늘의 작은 목표(선택): ${s.goal.text} · 해내면 결과에 별 도장`);
     }
     // 학생 시간 초기화 (2교시는 새로 시작)
     for (const st of s.room.students) {
@@ -138,7 +139,7 @@ export class ExamScene {
     const { r, room } = this.s;
     const free = room.students.filter((x) => x.status === "seated" && !x.cheat);
     // 창가(왼쪽 첫 줄) 학생에게 창밖 조력자가 쪽지를 전달
-    if (room.level >= 15 && r() < 0.18) {
+    if (room.level >= 15 && r() < 0.18 && room.theme !== "rain") {   // 비 오는 날은 창밖 쪽지 없음
       const cands = free.filter((x) => x.i % 5 === 0);
       if (cands.length) {
         const st = cands[Math.floor(r() * cands.length)];

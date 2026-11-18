@@ -24,6 +24,7 @@ export interface Room {
   bribedAide: boolean;     // 50회차~: 부감독이 매수됨 (힌트가 엉뚱한 학생을 가리킴)
   outageChance: number;
   smuggleChance: number;
+  theme: "hot" | "cold" | "rain" | "tense" | null;   // 그날의 교실 분위기 (무고한 학생 습관·연출만 바뀜)
 }
 
 export function aiGenFor(level: number): 1 | 2 | 3 | 4 {
@@ -262,6 +263,20 @@ export function buildRoom(level: number, seed = level * 7919 + 13, alumnus: Alum
     if (d) d.habits = ["temple", "nosepush"];
   }
 
+  // --- 그날의 교실 분위기 (6회차부터 30%): 부정행위자 수·단서는 그대로, 무고한 학생 습관과 연출만
+  const roll = (((seed * 9301 + 49297) % 233280) + 233280) % 233280 / 233280;   // 기존 난수 순서를 건드리지 않게 따로
+  const themes = ["hot", "cold", "rain", "tense"] as const;
+  const theme = level >= 6 && roll < 0.3 ? themes[Math.floor(roll / 0.3 * themes.length)] : null;
+  const calm = students.filter((s) => !s.cheat);
+  if (theme === "hot") { for (const s of calm) s.habits.push("drink", "drink"); notes.unshift("오늘은 더운 날입니다. 물 마시는 학생이 많아요."); }
+  if (theme === "cold") { for (const s of calm) s.habits.push("cough", "cough"); notes.unshift("감기가 유행입니다. 기침 소리가 잦아요."); }
+  if (theme === "rain") notes.unshift("비가 옵니다. 교실이 조금 어둡습니다.");
+  if (theme === "tense") {
+    const extra = calm.find((s) => !s.timid);
+    if (extra) { extra.timid = true; if (!extra.habits.includes("glance")) extra.habits.push("glance"); }
+    notes.unshift("다들 긴장했어요. 눈이 마주치면 움찔하는 학생이 있습니다.");
+  }
+
   // 시작 시각 흩뜨리기
   for (const s of students) {
     s.nextCheatAt = 4 + r() * 10;
@@ -289,5 +304,6 @@ export function buildRoom(level: number, seed = level * 7919 + 13, alumnus: Alum
     bribedAide: level >= 50 && r() < 0.2,
     outageChance: level >= 10 ? Math.min(0.45, 0.15 + level * 0.006) : 0,
     smuggleChance: level >= 20 ? Math.min(0.3, 0.1 + (level - 20) * 0.005) : 0,
+    theme,
   };
 }
