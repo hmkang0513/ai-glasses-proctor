@@ -53,6 +53,7 @@ export class ExamScene {
   lastAct: number[] = [];                 // 학생별 마지막 부정행위 동작 시각
   radioCharges = 2;
   radioUntil = -1;
+  radioExplained = false;
   pre = 0;                       // 1교시 전 시계 확인 남은 시간             // 0 = 명부, 1~ = 감독관 수첩 메모
   ended = false;
   endReason: "time" | "allCaught" | "replaced" = "time";
@@ -99,6 +100,7 @@ export class ExamScene {
     this.setupEvents();
     // 1교시 전 시계 확인 (실제 수능: 1·3교시 전에 시계를 책상 위에 두고 감독관이 확인)
     if (s.period === 0 && s.room.level >= 4) this.pre = 12;
+    if (this.pre > 0) this.mode = "fp";   // 시계 확인은 교실을 돌며 직접
     // 부감독 헛기침 힌트: 교시당 1번, 정확도 약 70%, 50회차부터 없음
     if ((s.room.level >= 3 && s.room.level < 50) || s.room.bribedAide) this.aideHintAt = 45 + r() * 80;
   }
@@ -283,7 +285,10 @@ export class ExamScene {
       if (inp.hit("Tab")) this.toast("시계 확인 중에는 교실을 돌며 직접 봐야 합니다", 2);
       if (this.mode === "fp") this.updateFp(dt, inp);
       else this.updateCctv(inp);
-      if (this.pre <= 0) this.toast("08:40 · 1교시 국어 시작", 2.5, COLORS.accent);
+      if (this.pre <= 0) {
+        this.toast("08:40 · 1교시 국어 시작", 2.5, COLORS.accent);
+        if (this.s.save.mode === "cctv") { this.mode = "cctv"; this.cam.x = 5; this.cam.z = 0.95; this.cam.yaw = 0; this.glitch = cctvGlitch(); }
+      }
       return;
     }
     this.t += dt;
@@ -327,8 +332,10 @@ export class ExamScene {
         if (st.leaveT > 3.6) st.status = "gone";
       }
       // 바로 옆에 오래 머물면 "쳐다봐서 불편하다" 민원
-      if (st.status === "seated" && this.mode === "fp" && this.dist(st) < 1.3 && (this.panel === st.i || this.target === st.i)) {
+      if (st.status === "seated" && this.mode === "fp" && this.pre <= 0 && this.dist(st) < 1.3 && (this.panel === st.i || this.target === st.i)) {
         st.stareT += dt;
+        if (st.stareT > STARE_COMPLAINT_SEC - 3 && st.stareT - dt <= STARE_COMPLAINT_SEC - 3 && !st.stareComplained)
+          this.toast(`${st.seat}번 학생이 불편해합니다. 조금 떨어지세요`, 2.5, COLORS.accent);
         if (st.stareT > STARE_COMPLAINT_SEC && !st.stareComplained) {
           st.stareComplained = true;
           this.addComplaint(0.5, `${st.seat}번 학생: "감독관이 계속 옆에 서 있어서 불편해요" 민원`);
@@ -388,7 +395,10 @@ export class ExamScene {
       if (this.s.room.level < 16) this.toast("전파 탐지기는 아직 지급되지 않았습니다", 2);
       else if (this.panel < 0) this.toast("전파 탐지기는 관찰(E) 중에만 쓸 수 있습니다", 2);
       else if (this.radioCharges <= 0) this.toast("이번 교시 전파 탐지기 횟수를 다 썼습니다", 2);
-      else { this.radioCharges--; this.radioUntil = this.t + 3; }
+      else {
+        this.radioCharges--; this.radioUntil = this.t + 3;
+        if (!this.radioExplained) { this.radioExplained = true; this.toast("바늘이 빨간 영역이면 근처 무선 기기가 송신 중입니다. 가끔 다른 기기 잡음도 있습니다", 4); }
+      }
     }
     // F: 적발
     if (inp.hit("KeyF")) this.tryAccuse();
@@ -428,9 +438,12 @@ export class ExamScene {
       const c = toCam([st.x, 0, st.z], this.cam);
       if (c[2] < 0.4 || c[2] > OBSERVE_RANGE) continue;
       const sc = (SPX * F) / c[2];
-      const [fx] = proj(c);
-      const w = SPR_W * sc;
-      if (Math.abs(W / 2 - fx) < w * 0.32 && c[2] < bz) { bz = c[2]; best = st.i; }
+      const [fx, fy] = proj(c);
+      const w = SPR_W * sc, h = SPR_H * sc;
+      // 머리(스프라이트 위쪽 1/4)가 조준점에 가장 가까운 학생
+      const hx = fx, hy = fy - h * 0.72;
+      const d = Math.hypot(W / 2 - hx, (H / 2 - hy) * 0.6);
+      if (Math.abs(W / 2 - hx) < Math.max(10, w * 0.32) && d < bz) { bz = d; best = st.i; }
     }
     return best;
   }
@@ -511,6 +524,8 @@ export class ExamScene {
     g.font = KR(11); g.fillStyle = COLORS.chalk; g.textBaseline = "top"; g.fillText("전파 탐지", x + 6, y + 4);
     const cx = x + 35, cy = y + 56, r = 26;
     g.strokeStyle = "#2b3732"; g.lineWidth = 3; g.beginPath(); g.arc(cx, cy, r, Math.PI, 0); g.stroke();
+    g.strokeStyle = "#3f7a4a"; g.beginPath(); g.arc(cx, cy, r, Math.PI, Math.PI * 1.5); g.stroke();   // 평소 범위 (초록)
+    g.font = KR(9); g.fillStyle = "#7fd18c"; g.fillText("평소", x + 4, y + 50); g.fillStyle = COLORS.alert; g.fillText("송신", x + 50, y + 50);
     g.strokeStyle = COLORS.alert; g.beginPath(); g.arc(cx, cy, r, -0.6, 0); g.stroke();
     const sig = this.radioSignal(st);
     const a = Math.PI + sig * Math.PI;
@@ -627,7 +642,9 @@ export class ExamScene {
         g.fillRect(x1 - L, y1, L + 1, 1); g.fillRect(x1, y1 - L, 1, L + 1);
         const d = this.dist(st);
         const txt = !st.observed ? "[E] 관찰" : d <= ACCUSE_RANGE ? "[F] 적발  [E] 닫기" : "가까이 가면 [F] 적발";
-        label(g, `${st.seat}번 ${txt}`, Math.min(W - 120, x1 + 4), Math.max(30, y0), { font: KR(12), color: COLORS.accent });
+        g.font = KR(12);
+        const lw = Math.ceil(g.measureText(`${st.seat}번 ${txt}`).width) + 8;
+        label(g, `${st.seat}번 ${txt}`, Math.max(4, Math.min(W - lw - 4, Math.round(fx - lw / 2))), Math.min(H - 20, y1 + 4), { font: KR(12), color: COLORS.accent });   // 얼굴을 가리지 않게 아래에
       }
     }
     if (this.panel >= 0) {
@@ -690,8 +707,8 @@ export class ExamScene {
       px(g, W - 58 + k * 17, 9, 14, 10, COLORS.line);
       if (fill > 0) px(g, W - 58 + k * 17, 9, Math.round(14 * fill), 10, COLORS.alert);
     }
-    if (this.mode === "fp" && !this.memoOpen && this.t < 6 && this.s.period === 0)
-      label(g, "화면 클릭 → 마우스 고정 · Q 명부 보기", W / 2 - 100, 112, { font: KR(12) });
+    if (this.mode === "fp" && !this.memoOpen && this.t < 6 && this.pre <= 0 && this.s.period === 0)
+      label(g, "화면 클릭 → 마우스 고정 · Q 명부 보기", W / 2 - 100, 132, { font: KR(12) });
     // 정전 방송
     this.renderOutage(g);
     // 토스트
@@ -775,13 +792,22 @@ export class ExamScene {
     }
     g.font = KR(16); g.fillStyle = COLORS.navy;
     g.fillText(this.memoPages[0] ?? "감독 명부", x + 14, y + 12);
-    g.font = KR(13); g.fillStyle = COLORS.ink;
+    // 들어갈 줄 수를 먼저 세고, 넘치면 글자를 줄인다
+    let size = 13, lh = 17;
+    for (; size >= 10; size--, lh -= 1.5) {
+      g.font = KR(size);
+      let n = 0;
+      for (const para of this.memoPages.slice(1)) n += wrapText(g, para, w - 40).length;
+      if (40 + n * lh + this.memoPages.length * 5 < h - 48) break;
+    }
+    g.fillStyle = COLORS.ink;
     let yy = y + 40;
     for (const para of this.memoPages.slice(1)) {
       px(g, x + 12, yy + 5, 4, 4, COLORS.alert);
+      g.fillStyle = COLORS.ink;   // 글머리 점 색이 본문에 번지지 않게
       for (const line of wrapText(g, para, w - 40)) {
         g.fillText(line, x + 22, yy);
-        yy += 17;
+        yy += lh;
       }
       yy += 5;
     }

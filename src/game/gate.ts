@@ -180,6 +180,7 @@ export class GateScene {
     if (inp.hit("Digit1")) this.act("pass");
     if (inp.hit("Digit2")) this.act("hold");
     if (inp.hit("Digit3")) this.act("check");
+    if (inp.hit("Digit4")) { this.log.unshift(`${this.idx + 1}번부터 남은 학생은 모두 통과`); this.finish(); }
     if (inp.hit("ArrowRight") || inp.hit("KeyD")) this.sel = (this.sel + 1) % this.items.length;
     if (inp.hit("ArrowLeft") || inp.hit("KeyA")) this.sel = (this.sel + this.items.length - 1) % this.items.length;
   }
@@ -315,7 +316,7 @@ export class GateScene {
     ["머리", "손목", "몸통", "발"].forEach((nm, k) => {
       const y = 224 + k * 10;
       g.font = KR(10); g.fillStyle = COLORS.chalk; g.fillText(nm, 350, y - 1);
-      const lvl = parts[k] + (Math.floor(this.t * 6 + k) % 3 === 0 ? 1 : 0);
+      const lvl = parts[k] + (parts[k] > 0 && Math.floor(this.t * 6 + k) % 3 === 0 ? 1 : 0);
       for (let n = 0; n < 6; n++) px(g, 378 + n * 15, y, 13, 7, n < lvl ? (n >= 4 ? COLORS.alert : n >= 2 ? COLORS.accent : COLORS.green) : "#2b3732");
     });
     // 상단: 시간·순서·버튼
@@ -345,7 +346,7 @@ export class GateScene {
       "기기가 보이면 그 물건을 고르고 HOLD: 스스로 낸 것이니 보관하고 시험은 보게 합니다.",
       "몸에 숨긴 것 같거나 수험표 사진이 다르면 CHECK(6초 소모). 아무것도 없으면 민원.",
       "금속 탐지기는 금속테·시계에도 울립니다. 일반 안경을 뺏으면 민원이 들어옵니다.",
-      "08:10이 되면 남은 학생은 검사 없이 들어갑니다.",
+      "08:10이 되면 남은 학생은 검사 없이 들어갑니다. 4를 누르면 남은 학생을 모두 들여보냅니다.",
     ];
     let yy = y + 40;
     for (const p of lines) for (const l of wrapText(g, p, w - 30)) { g.fillText(l, x + 16, yy); yy += 17; }

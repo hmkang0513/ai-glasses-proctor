@@ -224,7 +224,7 @@ export class ResultScene {
     for (const m of d.missed.slice(0, 2)) {
       const acts = s.acts.filter((a) => a.seat === m.seat);
       const seen = acts.filter((a) => a.near).length;
-      const why = acts.length ? ` 이 학생이 ${acts.length}번 행동하는 동안 감독관이 가까이서 본 건 ${seen}번입니다.` : "";
+      const why = acts.length ? ` (행동 ${acts.length}번 중 가까이서 본 건 ${seen}번)` : "";
       box(`놓친 학생 · ${m.seat}번 · ${m.cheat!.name}`, m.cheat!.hint + why, "#9c2d23", "#f7e3df");
     }
     for (const w of d.wrong.slice(0, Math.max(0, 2 - d.missed.length))) {

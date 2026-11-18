@@ -95,14 +95,18 @@ function drawHands(g: Ctx, s: Student, t: number): void {
       const wx = 4, wy = pose === "palm" ? 44 : 44;
       px(g, wx - 1, wy, 12, 5, "#3a2a20");
       if (s.watch === "smart") {
-        px(g, wx + 1, wy - 1, 8, 7, "#111");
+        px(g, wx + 1, wy - 1, 8, 7, "#111"); px(g, wx + 9, wy + 1, 1, 2, "#555"); px(g, wx + 2, wy, 3, 1, "#3a4048");   // 옆 버튼·유리 반사
         // 평소엔 화면이 꺼져 있음 → 손목을 볼 때만 켜짐
         if (pose === "wrist") { px(g, wx + 2, wy, 6, 5, "#1f6f8b"); px(g, wx + 3, wy + 1, 4, 1, "#bfe9f5"); px(g, wx + 3, wy + 3, 3, 1, "#bfe9f5"); }
       } else if (s.watch === "hybrid") {
         px(g, wx + 1, wy - 1, 8, 7, "#c9b48a"); px(g, wx + 2, wy, 6, 5, "#f4f2ea");
         px(g, wx + 3, wy + 3, 4, 1, pose === "wrist" ? "#4fc3f7" : "#3a6a78");    // 작은 알림 화면 (확대해야 보임)
       } else if (s.watch === "band") px(g, wx + 1, wy + 1, 8, 3, "#222");
-      else if (s.watch === "blackanalog") { px(g, wx + 1, wy - 1, 8, 7, "#111"); px(g, wx + 2, wy, 6, 5, "#22262c"); px(g, wx + 5, wy + 1, 1, 3, "#e9e6da"); }
+      else if (s.watch === "blackanalog") {
+        px(g, wx + 1, wy - 1, 8, 7, "#111"); px(g, wx + 2, wy, 6, 5, "#22262c");
+        px(g, wx + 5, wy + 1, 1, 3, "#e9e6da"); px(g, wx + 5, wy + 3, 2, 1, "#e9e6da");   // 시침·분침
+        px(g, wx + 2, wy, 1, 1, "#c9b48a"); px(g, wx + 7, wy, 1, 1, "#c9b48a"); px(g, wx + 2, wy + 4, 1, 1, "#c9b48a"); px(g, wx + 7, wy + 4, 1, 1, "#c9b48a");   // 눈금
+      }
       else { px(g, wx + 1, wy - 1, 8, 7, "#c9b48a"); px(g, wx + 2, wy, 6, 5, "#f4f2ea"); px(g, wx + 5, wy + 1, 1, 3, "#222"); }
     }
     // 오른손 + 펜

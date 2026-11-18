@@ -70,7 +70,7 @@ export function cctvPass(src: ImageData, dst: ImageData, t: number, dark: boolea
     if (dark) lum *= 0.55;
     const vx = (x - W / 2) / (W / 2), vy = (y - H / 2) / (H / 2);
     lum *= 1 - 0.35 * (vx * vx + vy * vy);
-    lum += (nr() - 0.5) * 0.06;
+    lum += (nr() - 0.5) * 0.035;
     const idx = Math.max(0, Math.min(4, Math.round(lum * 4.6)));
     const c = GREEN[idx];
     for (let yy = 0; yy < 2; yy++) for (let xx = 0; xx < 2; xx++) {
