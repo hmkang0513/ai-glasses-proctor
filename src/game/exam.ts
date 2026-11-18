@@ -123,7 +123,7 @@ export class ExamScene {
     }
     this.setupEvents();
     // 1교시 전 시계 확인 (실제 수능: 1·3교시 전에 시계를 책상 위에 두고 감독관이 확인)
-    if (s.period === 0 && s.room.level >= 4) this.pre = s.room.level === 10 ? 18 : 12;   // 10회차는 앞 6초 열화상 시범
+    if (s.period === 0 && s.room.level >= 4) this.pre = s.room.level === 10 || s.room.level === 16 ? 18 : 12;   // 10·16회차는 앞 6초 장비 시범   // 10회차는 앞 6초 열화상 시범
     if (this.pre > 0) this.mode = "fp";   // 시계 확인은 교실을 돌며 직접
     // 부감독 헛기침 힌트: 교시당 1번, 정확도 약 70%, 50회차부터 없음
     if (s.room.level <= 5) this.aideHintAt = s.room.level <= 3 ? 20 + r() * 10 : 35 + r() * 10;   // 초반: 일찍, 정확하게, 반복
@@ -802,7 +802,7 @@ export class ExamScene {
   }
 
   /** 전파 탐지기 바늘 */
-  private drawRadio(g: Ctx, st: Student): void {
+  private drawRadio(g: Ctx, st: Student, fake = -1): void {
     const x = 214, y = 196;
     px(g, x, y, 70, 64, "rgba(16,22,20,0.94)");
     g.font = KR(11); g.fillStyle = COLORS.chalk; g.textBaseline = "top"; g.fillText("전파 탐지", x + 6, y + 4);
@@ -811,7 +811,7 @@ export class ExamScene {
     g.strokeStyle = "#3f7a4a"; g.beginPath(); g.arc(cx, cy, r, Math.PI, Math.PI * 1.5); g.stroke();   // 평소 범위 (초록)
     g.font = KR(9); g.fillStyle = "#7fd18c"; g.fillText("평소", x + 4, y + 50); g.fillStyle = COLORS.alert; g.fillText("송신", x + 50, y + 50);
     g.strokeStyle = COLORS.alert; g.beginPath(); g.arc(cx, cy, r, -0.6, 0); g.stroke();
-    const sig = this.radioSignal(st);
+    const sig = fake >= 0 ? fake : this.radioSignal(st);
     const a = Math.PI + sig * Math.PI;
     g.strokeStyle = COLORS.chalk; g.lineWidth = 1; g.beginPath(); g.moveTo(cx, cy); g.lineTo(cx + Math.cos(a) * (r - 3), cy + Math.sin(a) * (r - 3)); g.stroke();
   }
@@ -1057,8 +1057,18 @@ export class ExamScene {
     }
     if (this.collectT > 0) label(g, `답안지 회수 중 ${Math.ceil(this.collectT)}초 · 아직 펜을 움직이는 학생이 있으면 관찰 후 F`, 50, 112, { font: KR(12), color: COLORS.accent });
     // 10회차 열화상 시범: 시계 확인 12초 동안 부감독 안경으로 뜨거움 → 식음을 보여 줌 (횟수 소모 없음)
-    const demoOn = this.pre > 12 && this.s.room.level === 10 && this.s.period === 0;
-    if (demoOn && this.mode === "fp" && this.panel < 0) {
+    const demoOn = this.pre > 12 && (this.s.room.level === 10 || this.s.room.level === 16) && this.s.period === 0;
+    if (demoOn && this.s.room.level === 16 && this.mode === "fp" && this.panel < 0) {
+      // 16회차 전파 탐지기 시범: 부감독 무전기를 켜고 끄며 바늘이 움직이는 것을 보여 줌
+      const on = this.pre > 14.5;
+      const base = this.students[0];
+      const demo: Student = { ...base, cheat: null, aiGen: 0, ledOn: false, status: "seated", alumnus: null,
+        hair: "#2b2320", skin: "#e0b48e", shirt: "#39435a", longHair: false, glasses: null, watch: "none", pose: "write" };
+      drawCloseup(g, demo, this.t, 10, 166, false, 0, false);
+      px(g, 150, 220, 10, 22, "#222"); px(g, 152, 214, 2, 8, "#444"); if (on) px(g, 152, 224, 6, 3, "#ff3b30");   // 무전기
+      this.drawRadio(g, demo, on ? 0.92 + Math.sin(this.t * 9) * 0.04 : 0.15 + Math.sin(this.t * 3) * 0.03);
+      label(g, on ? "부감독 시범: 무전기를 켜면 바늘이 빨간 '송신' 쪽으로!" : "끄면 바늘이 '평소'로. 학생을 관찰하며 R을 쓰세요", 8, 150, { font: KR(12), color: on ? COLORS.accent : COLORS.chalk });
+    } else if (demoOn && this.mode === "fp" && this.panel < 0) {
       // 부감독 외형(정장)으로: 학생과 헷갈리지 않게
       const base = this.students[0];
       const touching = this.pre > 16, hotNow = this.pre > 14;
