@@ -169,7 +169,7 @@ export class ResultScene {
       if (k < 6) { const dx = 22 + c * 40 + 4 + k * 4, dy = 68 + r * 32 + 19; px(g, dx - 1, dy - 1, 5, 5, "#3a2a20"); px(g, dx, dy, 3, 3, a.near ? "#7fd18c" : "#ffffff"); }   // 흰 점 = 못 본 행동, 초록 = 가까이서 봄
     }
     g.font = KR(11); g.fillStyle = "#7d776b";
-    g.fillText("주황 적발 · 파랑 보관 · 빨강 놓침 · 빗금 오인", 22, 190); g.fillText("흰 점 못 본 행동 · 초록 점 가까이서 본 행동", 22, 201);
+    g.fillText("주황 적발 · 파랑 보관 · 빨강 놓침 · 빗금 오인", 22, 195); g.fillText("흰 점 못 본 행동 · 초록 점 가까이서 본 행동", 22, 206);
 
     // 통계
     const sx = 236;
@@ -239,18 +239,20 @@ export class ResultScene {
 
     // 처분·수첩
     // 왼쪽 아래 (폭 205px 안에서 줄바꿈)
-    g.font = KR(11); g.fillStyle = "#7d776b";
-    wrapText(g, "적발자 처분: 당해 시험 무효. 무선기기 등 중대 행위는 다음 해 응시 자격 정지", 205)
-      .slice(0, 2).forEach((l, i) => g.fillText(l, 22, 213 + i * 11));
+    // 처분은 한 줄로 (넘치면 글자를 줄임)
+    g.fillStyle = "#7d776b";
+    const rule = "처분: 당해 시험 무효 · 중대 행위는 다음 해 응시 정지";
+    for (let fs = 11; fs >= 8; fs--) { g.font = KR(fs); if (g.measureText(rule).width <= 205) break; }
+    g.fillText(rule, 22, 219);
     if (d.newNotes.length) {
-      if (Math.floor(this.t * 2) % 2) { px(g, 22, 231, 30, 13, COLORS.accent); g.font = PIX(8); g.fillStyle = COLORS.bg; g.fillText("NEW", 26, 234); }
+      if (Math.floor(this.t * 2) % 2) { px(g, 22, 233, 30, 13, COLORS.accent); g.font = PIX(8); g.fillStyle = COLORS.bg; g.fillText("NEW", 26, 236); }
       g.font = KR(12); g.fillStyle = COLORS.ink;
       const first = CHEAT_BY_ID[d.newNotes[0]].name;
       let note = `수첩 · ${first}${d.newNotes.length > 1 ? ` 외 ${d.newNotes.length - 1}` : ""}`;
       while (g.measureText(note).width > 150 && note.length > 6) note = note.slice(0, -2) + "…";
-      g.fillText(note, 58, 231);
+      g.fillText(note, 58, 234);
     }
-    if (!d.pass) { g.font = KR(12); g.fillStyle = "#9c2d23"; g.fillText(s.replaced ? "민원 가득: 감독관 교체" : "D 등급: 다시 맡습니다", 22, 246); }
+    if (!d.pass) { g.font = KR(12); g.fillStyle = "#9c2d23"; g.fillText(s.replaced ? "민원 가득: 감독관 교체" : "D 등급: 다시 맡습니다", 22, 249); }
 
     for (const b of this.btns) {
       const main = b === this.btns[0];

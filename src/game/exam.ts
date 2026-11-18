@@ -52,6 +52,7 @@ export class ExamScene {
   finalAnnounced = false;
   pathT = 0;
   prevActing: boolean[] = [];
+  actStart: number[] = [];                // 학생별 부정행위 시작 시각 (초반 "!" 표시)
   lastAct: number[] = [];                 // 학생별 마지막 부정행위 동작 시각
   glanceRoll: boolean[] = [];              // 이번 흘끗에서 움찔할지
   lastGlance: number[] = [];               // 학생별 마지막 흘끗 시각
@@ -89,7 +90,7 @@ export class ExamScene {
     this.spr = makeCanvas(SPR_W, SPR_H);
     this.dst = new ImageData(W, H);
     const r = s.r;
-    this.weather = (["day", "overcast", "dim"] as PresetName[])[Math.floor(r() * 3)];
+    this.weather = s.room.level <= 5 ? "day" : (["day", "overcast", "dim"] as PresetName[])[Math.floor(r() * 3)];   // 초반은 맑은 날
     if (r() < s.room.outageChance) this.outageAt = 40 + r() * 80;
     // 첫 교시 시작 전 수석감독관 메모
     if (s.period === 0 && (s.room.tutorial.length || s.room.notes.length)) {
@@ -113,7 +114,7 @@ export class ExamScene {
     if (s.period === 0 && s.room.level >= 4) this.pre = 12;
     if (this.pre > 0) this.mode = "fp";   // 시계 확인은 교실을 돌며 직접
     // 부감독 헛기침 힌트: 교시당 1번, 정확도 약 70%, 50회차부터 없음
-    if (s.room.level <= 5) this.aideHintAt = 40 + r() * 20;   // 초반: 일찍, 정확하게, 반복
+    if (s.room.level <= 5) this.aideHintAt = s.room.level <= 3 ? 20 + r() * 10 : 35 + r() * 10;   // 초반: 일찍, 정확하게, 반복
     else if (s.room.level < 50 || s.room.bribedAide) this.aideHintAt = 45 + r() * 80;
   }
 
@@ -221,6 +222,7 @@ export class ExamScene {
       // 소심한 무고 학생: 움찔했다가 바로 다시 필기
       st.habitPose = "flinch"; st.pose = "flinch"; st.habitT = late ? 0.6 + this.s.r() * 2.4 : 0.6;
     }
+    if (st.acting && !this.prevActing[st.i]) this.actStart[st.i] = this.t;   // 부정행위를 막 시작한 시각
     this.prevActing[st.i] = st.acting;
     if (st.acting) this.lastAct[st.i] = this.t;
     this.prevPose[st.i] = st.pose;
@@ -269,8 +271,9 @@ export class ExamScene {
         const st = pool[Math.floor(this.s.r() * pool.length)];
         this.toast(`부감독이 헛기침을 하며 ${st.seat}번 쪽을 봅니다`, 4, COLORS.accent);
         this.s.aideHintSeats.push(st.seat);
+        if (early && isCheating(st) && !st.acting) { st.nextCheatAt = this.t + 2; st.skipGlanceUntil = this.t + 6; }   // 힌트 직후 한 번 보여 줌
       }
-      if (early && cheaters.length) this.aideHintAt = this.t + 50;   // 남은 사람이 있으면 다시 알려 줌
+      if (early && cheaters.length) this.aideHintAt = this.t + 40;   // 남은 사람이 있으면 다시 알려 줌
     }
     if (this.windowSeat >= 0 && this.t >= this.windowFrom && this.t < this.windowFrom + 0.1) {
       const st = this.students[this.windowSeat];
@@ -722,6 +725,7 @@ export class ExamScene {
       quad(bg, this.cam, [[0.03, 1.9 + bob, z - 0.14], [0.03, 1.9 + bob, z + 0.14], [0.03, 2.22 + bob, z + 0.14], [0.03, 2.22 + bob, z - 0.14]], "#2e3138");
     }
     const lights: PointLight[] = [];
+    const bangs: Array<[number, number]> = [];   // 초반 회차: 방금 부정행위를 시작한 학생 머리 위 "!"
     type Item = { st: Student; wx: number; wz: number; kind: "seat" | "walk" | "aide" };
     const items: Item[] = [{ st: this.students[0], wx: this.aide.x, wz: this.aide.z, kind: "aide" }];
     for (const st of this.students) {
@@ -754,6 +758,7 @@ export class ExamScene {
       if (left > W || left + w < 0) continue;
       bg.drawImage(sprC, left, top, w, h);
       for (const L of local) lights.push({ x: Math.round(left + (L.x + 0.5) * sc), y: Math.round(top + (L.y + 0.5) * sc), r: Math.max(3, Math.round(11 * sc * 0.6)), c: [255, 70, 50], s: 0.95 });
+      if (it.kind === "seat" && it.st.status === "seated" && this.s.room.level <= 5 && this.t - (this.actStart[it.st.i] ?? -99) < 1.2) bangs.push([fx, top + 5 * sc]);
       // CCTV에서 표시한 학생 머리 위 표시
       if (it.kind === "seat" && this.marks.has(it.st.i) && it.st.status === "seated") px(bg, fx - 2, top - 6, 4, 4, COLORS.accent);
     }
@@ -761,6 +766,11 @@ export class ExamScene {
     const src = bg.getImageData(0, 0, W, H);
     applyLight(src, this.dst, this.presetNow(), lights);
     g.putImageData(this.dst, 0, 0);
+    for (const [bx, by] of bangs) {
+      const yy = Math.round(by - 16 - Math.abs(Math.sin(this.t * 8)) * 3);
+      px(g, Math.round(bx) - 5, yy - 1, 10, 13, "#1a1414");   // 어두운 테두리 (배경에 묻히지 않게)
+      px(g, Math.round(bx) - 4, yy, 8, 11, "#f0b54a"); px(g, Math.round(bx) - 1, yy + 2, 2, 5, "#1a1414"); px(g, Math.round(bx) - 1, yy + 8, 2, 2, "#1a1414");
+    }
 
     // 조준점 + 대상 표시
     px(g, W / 2 - 1, H / 2 - 1, 2, 2, "rgba(233,230,218,0.85)");
@@ -871,7 +881,7 @@ export class ExamScene {
       if (fill > 0) px(g, W - 58 + k * 17, 9, Math.round(14 * fill), 10, COLORS.alert);
     }
     if (this.mode === "fp" && !this.memoOpen && this.t < 6 && this.pre <= 0 && this.s.period === 0)
-      if (!this.touchUi.length) label(g, "화면 클릭 → 마우스 고정 · Q 명부 보기", W / 2 - 100, 132, { font: KR(12) });
+      if (!this.touchUi.length) label(g, "화면 클릭 → 마우스 고정 · Q 명부 보기", W / 2 - 80, 52, { font: KR(10) });
     // 정전 방송
     this.renderOutage(g);
     // 토스트

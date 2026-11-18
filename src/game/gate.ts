@@ -154,7 +154,9 @@ export class GateScene {
     this.next();
   }
 
+  touch = false;   // 휴대폰이면 도움말 문구를 터치용으로
   update(dt: number, inp: Input): void {
+    this.touch = inp.touchMode;
     if (this.done) return;
     if (this.helpOpen) {
       if (inp.clicked || inp.hit("Space") || inp.hit("Enter")) this.helpOpen = false;
@@ -363,7 +365,9 @@ export class GateScene {
     }
     g.fillStyle = COLORS.ink;
     let yy = y + 40;
-    for (const p of lines) for (const l of wrapText(g, p, w - 30)) { g.fillText(l, x + 16, yy); yy += lh; }
-    g.font = KR(12); g.fillStyle = "#7d776b"; g.fillText("클릭하면 시작합니다", x + 16, y + h - 22);
+    // 휴대폰: 키 번호·클릭 대신 버튼·터치
+    const tx = (p: string) => this.touch ? p.replace(/클릭하면/g, "누르면").replace(/([1-4]) (PASS|HOLD|CHECK)/g, "$2 버튼").replace(/4를 누르면/g, "모두 통과 버튼을 누르면") : p;
+    for (const p of lines) for (const l of wrapText(g, tx(p), w - 30)) { g.fillText(l, x + 16, yy); yy += lh; }
+    g.font = KR(12); g.fillStyle = "#7d776b"; g.fillText(this.touch ? "화면을 누르면 시작합니다" : "클릭하면 시작합니다", x + 16, y + h - 22);
   }
 }
