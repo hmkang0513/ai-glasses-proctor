@@ -75,7 +75,7 @@ export function lookFor(school: string, level: number): RoomLook | undefined {
 }
 
 /** 교실(벽·바닥·창문·칠판·사물함·스피커) */
-export function drawRoom(g: Ctx, cam: Camera, look?: RoomLook): void {
+export function drawRoom(g: Ctx, cam: Camera, look?: RoomLook, rainT = -1): void {
   const L = look ?? { ...PALETTES.base, props: [] };
   g.fillStyle = "#c9c6ba";
   g.fillRect(0, 0, W, H);
@@ -98,6 +98,10 @@ export function drawRoom(g: Ctx, cam: Camera, look?: RoomLook): void {
     quad(g, cam, onLeft(z0, z0 + 3, 1.0, 2.4, 0.02), "#8fbfd4");
     quad(g, cam, onLeft(z0 + 1.47, z0 + 1.53, 1.0, 2.4, 0.03), "#e6e2d6");
     quad(g, cam, onLeft(z0 + 0.2, z0 + 0.9, 2.1, 2.2, 0.03), "#d6f0fa");
+    if (rainT >= 0) for (let k = 0; k < 7; k++) {   // 비 오는 날: 창문을 타고 내리는 빗줄기
+      const z = z0 + 0.2 + ((k * 0.41) % 2.7), y = 2.3 - ((rainT * 0.9 + k * 0.37) % 1.2);
+      quad(g, cam, onLeft(z, z + 0.025, y - 0.22, y, 0.035), "#cfe3ee");
+    }
   }
   // 뒷벽: 게시판, 시계, 사물함, 스피커
   quad(g, cam, onBack(0.8, 3.6, 1.1, 2.2), "#6e5a3e");

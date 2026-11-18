@@ -66,6 +66,7 @@ export class ExamScene {
   panelCloseAt = 0;                       // 적발 뒤 들킨 표정을 잠깐 보여 주고 닫음
   autoWalk = -1; autoWalkUntil = 0;
   closeEnough = -1;
+  rainAt = 0;
   look: RoomLook | undefined;               // 학교별 교실 풍경 (21회차~)
   // 반장의 제보 (11회차~, 교시당 1번, 항상 맞는 정보)
   repI = -1; repAt = -1; repState = 0; repUntil = 0;                        // 자동으로 다가간 학생: 3m 안이면 F로 처리 가능       // 멀리서 F: 그 학생 옆까지 자동으로 걸어감
@@ -265,6 +266,11 @@ export class ExamScene {
 
   private updateAmbient(): void {
     if (this.pre <= 0 && this.t >= this.pathT) { this.s.path.push([this.s.period, this.cam.x, this.cam.z]); this.pathT = this.t + 0.5; }
+    if (this.s.room.theme === "rain" && this.t >= this.rainAt) {   // 창가 쪽 빗소리
+      this.rainAt = this.t + 1.8;
+      const a = Math.atan2(0 - this.cam.x, 0) - this.cam.yaw;
+      play("rain", Math.sin(-Math.PI / 2 - this.cam.yaw), 1, Math.cos(a) < 0);
+    }
     if (this.t >= this.nextAmbient) {
       const seated = this.students.filter((x) => x.status === "seated");
       if (seated.length) {
@@ -922,7 +928,7 @@ export class ExamScene {
     const [, bg] = this.base;
     const [sprC, sg] = this.spr;
     bg.imageSmoothingEnabled = false;
-    drawRoom(bg, this.cam, this.look);
+    drawRoom(bg, this.cam, this.look, this.s.room.theme === "rain" ? this.t : -1);
     // 창밖 조력자 (창문 유리 너머 그림자)
     if (this.windowPersonVisible()) {
       const z = this.students[this.windowSeat].z;

@@ -33,7 +33,7 @@ export function toggleMute(): boolean {
   return muted;
 }
 
-export type SoundKind = "buzz" | "cough" | "chair" | "click" | "whisper" | "page" | "tick" | "power" | "hum" | "tap";
+export type SoundKind = "buzz" | "cough" | "chair" | "click" | "whisper" | "page" | "tick" | "power" | "hum" | "tap" | "rain";
 
 /** pan: -1(왼쪽)~1(오른쪽), vol: 0~1 */
 /** muffled: 등 뒤에서 난 소리는 먹먹하게 (앞뒤 구분) */
@@ -74,6 +74,12 @@ export function play(kind: SoundKind, pan = 0, vol = 1, muffled = false): void {
         g.gain.exponentialRampToValueAtTime(0.0001, t + off + 0.15);
         o.connect(g).connect(out); o.start(t + off); o.stop(t + off + 0.16);
       }
+      break;
+    }
+    case "rain": {          // 빗소리: 낮게 걸러진 잡음 (창가 쪽)
+      const n = noise(2.2); const f = ac.createBiquadFilter(); const g = ac.createGain();
+      f.type = "lowpass"; f.frequency.value = 900; env(g, 0.05 * vol, 0.4, 2.2);
+      n.connect(f).connect(g).connect(out); n.start(t);
       break;
     }
     case "tap": {           // 적발: 감독관이 책상을 "톡" 두드림 (나무 소리)
