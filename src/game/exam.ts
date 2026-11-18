@@ -402,6 +402,11 @@ export class ExamScene {
     return this.t - (this.lastGlance[st.i] ?? -99) < 5;
   }
 
+  /** 감독관이 학생의 바로 옆쪽(앞뒤 각도 약 60° 바깥)에 있는지 */
+  trulySide(st: Student): boolean {
+    return Math.abs(st.z - this.cam.z) < Math.abs(st.x - this.cam.x) * 0.55;
+  }
+
   /** 감독관이 학생의 옆쪽에 서 있는지 (앞쪽이라도 각도가 60°보다 크면 옆모습으로) */
   sideView(st: Student): boolean {
     const dz = st.z - this.cam.z, dx = Math.abs(st.x - this.cam.x);
@@ -895,19 +900,35 @@ export class ExamScene {
       else if (it.kind === "walk") drawStanding(sg, it.st, this.t);
       else if (it.st.status !== "seated") drawEmptySeat(sg);
       else if (this.cam.z > it.st.z + 0.15 || this.sideView(it.st)) {
-        // 학생은 칠판을 보고 앉아 있음: 뒤나 옆에서 보면 뒷모습(옆에서는 옆얼굴)
-        const p0 = toCam([it.st.x, 0, it.st.z], this.cam), p1 = toCam([it.st.x, 0, it.st.z - 0.5], this.cam);
-        const profile = this.cam.z > it.st.z + 0.15 || p1[2] <= 0.05 ? 0 : Math.sign(p1[0] / p1[2] - p0[0] / p0[2]);
+        // 학생은 칠판을 보고 앉아 있음: 뒤나 옆에서 보면 뒷모습(옆에서는 칠판 쪽을 향한 옆얼굴)
+        const p0 = toCam([it.st.x, 0, it.st.z], this.cam), pf = toCam([it.st.x, 0, it.st.z - 0.5], this.cam), pb = toCam([it.st.x, 0, it.st.z + 0.5], this.cam);
+        const sx = (p: number[]) => p[0] / p[2];
+        const profile = !this.trulySide(it.st) ? 0 : pf[2] > 0.05 ? Math.sign(sx(pf) - sx(p0)) : pb[2] > 0.05 ? Math.sign(sx(p0) - sx(pb)) : 0;
         drawStudentBack(sg, it.st, { t: this.t, ledVisible: false, lights: local, profile });
       }
       else drawStudent(sg, it.st, { t: this.t, ledVisible: true, lights: local });
       const sc = (SPX * F) / c[2];
       const [fx, fy] = proj(c);
-      const w = SPR_W * sc, h = SPR_H * sc;
-      const left = fx - w / 2, top = fy - h;
+      let w = SPR_W * sc;
+      const h = SPR_H * sc;
+      let left = fx - w / 2;
+      const top = fy - h;
+      if (it.kind === "seat") {
+        // 자리에 앉은 학생은 카메라를 따라 돌지 않음: 칠판을 향한 고정된 판(옆에서 보면 옆으로 놓인 판)
+        const hw = (SPR_W * SPX) / 2;
+        const side = this.trulySide(it.st);
+        const ea = side ? [it.st.x, 0, it.st.z - hw * 0.85] : [it.st.x - hw, 0, it.st.z];
+        const eb = side ? [it.st.x, 0, it.st.z + hw * 0.85] : [it.st.x + hw, 0, it.st.z];
+        const ca = toCam(ea as [number, number, number], this.cam), cb = toCam(eb as [number, number, number], this.cam);
+        if (ca[2] > 0.2 && cb[2] > 0.2) {
+          const xa = proj(ca)[0], xb = proj(cb)[0];
+          left = Math.min(xa, xb); w = Math.max(2, Math.abs(xb - xa));
+        }
+      }
       if (left > W || left + w < 0) continue;
       bg.drawImage(sprC, left, top, w, h);
-      for (const L of local) lights.push({ x: Math.round(left + (L.x + 0.5) * sc), y: Math.round(top + (L.y + 0.5) * sc), r: Math.max(3, Math.round(11 * sc * 0.6)), c: [255, 70, 50], s: 0.95 });
+      const sxk = w / SPR_W;
+      for (const L of local) lights.push({ x: Math.round(left + (L.x + 0.5) * sxk), y: Math.round(top + (L.y + 0.5) * sc), r: Math.max(3, Math.round(11 * sc * 0.6)), c: [255, 70, 50], s: 0.95 });
       if (it.kind === "seat" && it.st.status === "seated" && this.bangFor(it.st)) bangs.push([fx, top + 5 * sc]);
       // CCTV에서 표시한 학생 머리 위 표시
       if (it.kind === "seat" && this.marks.has(it.st.i) && it.st.status === "seated") { const my = Math.round(top + 5 * sc - 14); px(bg, fx - 3, my - 1, 7, 7, "#1a1414"); px(bg, fx - 2, my, 5, 5, COLORS.accent); px(bg, fx - 1, my + 1, 3, 3, "#1a1414"); }

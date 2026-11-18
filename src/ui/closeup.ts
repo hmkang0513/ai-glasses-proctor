@@ -16,7 +16,8 @@ function drawFace(g: Ctx, s: Student, t: number): void {
   px(g, 28, 50, 8, 14, "#e4e4ea"); px(g, 31, 52, 2, 12, "#3a4a7a");
   px(g, 13, 10, 38, s.longHair ? 34 : 22, s.hair);
   px(g, 16, 14, 32, 36, s.skin);
-  px(g, 16, 12, 32, 8, s.hair);
+  const up = ["glance", "lookaround", "side", "window", "think", "stretch", "cough", "handup", "drink"].includes(pose);
+  px(g, 16, 12, 32, up ? 8 : 11, s.hair);   // 평소엔 고개를 숙여 앞머리가 더 보임
   px(g, 13, 26, 3, 9, s.skin); px(g, 48, 26, 3, 9, s.skin);              // 귀
   // 이어폰: 보이는 것 / 피부색 초소형(아주 작게 색이 다름)
   if (cheat?.tells.earpiece === "visible") px(g, 49, 29, 2, 3, "#f2f2f2");
@@ -47,6 +48,12 @@ function drawFace(g: Ctx, s: Student, t: number): void {
   if (s.glasses && pose !== "glassesoff") {
     drawFaceGlasses(g, s.glasses);
     if (s.aiGen > 0) drawFaceAiParts(g, s.aiGen, s.glasses, s.ledOn);
+  }
+  // 물 마시기: 눈을 감고 병을 입에 대고 기울임
+  if (pose === "drink") {
+    for (const ex of [21, 36]) { px(g, ex, 27, 7, 5, s.skin); px(g, ex, 30, 7, 1, "#1a1414"); }
+    px(g, 28, 38, 7, 5, "#bfe3ef");
+    for (let k = 0; k < 5; k++) px(g, 34 + k * 4, 42 + k * 3, 6, 5, k === 2 ? "#3a8fbf" : "#bfe3ef");
   }
   // 손이 얼굴 근처에 있는 동작
   if (pose === "temple") px(g, 50, 24, 8, 10, s.skin);
@@ -165,7 +172,7 @@ function drawHands(g: Ctx, s: Student, t: number): void {
     px(g, 20, 44, 14, 8, "#f2f2f2"); px(g, 20, 44, 14, 3, "#4a7ac0");
     if (tells.eraserNote) { px(g, 22, 48, 9, 1, "#555"); px(g, 22, 50, 7, 1, "#555"); }
   }
-  if (pose === "bottle" || pose === "drink") {
+  if (pose === "bottle") {   // 마실 때는 얼굴 칸에 그림
     px(g, 48, 6, 12, 30, "#bfe3ef"); px(g, 48, 14, 12, 10, "#3a8fbf");
     if (tells.bottleNote && pose === "bottle") { px(g, 50, 16, 8, 1, "#f4f2ea"); px(g, 50, 19, 6, 1, "#f4f2ea"); }
   }

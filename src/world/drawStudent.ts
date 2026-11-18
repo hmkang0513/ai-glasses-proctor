@@ -18,7 +18,7 @@ export interface DrawOpts {
 }
 
 // 앞모습에서 눈을 들고 있는 동작 (나머지는 모두 시험지를 내려다봄)
-const EYES_UP = new Set(["glance", "lookaround", "side", "window", "think", "stretch", "cough", "drink", "handup"]);
+const EYES_UP = new Set(["glance", "lookaround", "side", "window", "think", "stretch", "cough", "handup"]);
 
 function desk(g: Ctx, paper: boolean): void {
   px(g, CX - 14, Y, 28, 10, "#c99a5e");
@@ -170,7 +170,8 @@ export function drawStudent(g: Ctx, s: Student, o: DrawOpts): void {
   if (pose === "side") hx = s.i % 5 < 2 ? 1 : -1;
   if (pose === "lookaround") hx = Math.floor(t * 2.5) % 2 ? 1 : -1;
   if (pose === "window") hx = -1;
-  const down = pose === "flinch" ? 3 : HEAD_DOWN.has(pose) ? 1 : 0;
+  const bowed = !EYES_UP.has(pose) && pose !== "drink";   // 평소엔 고개를 숙여 책상(시험지)을 봄
+  const down = pose === "flinch" ? 3 : HEAD_DOWN.has(pose) || bowed ? 1 : 0;
   const nod = pose === "nod" ? (Math.floor(t * 4) % 2) : 0;
 
   // 의자 등받이, 몸
@@ -179,10 +180,10 @@ export function drawStudent(g: Ctx, s: Student, o: DrawOpts): void {
   if (s.shirt === "#e4e4ea") px(g, CX - 1, Y - 9, 2, 6, "#3a4a7a");
 
   // 머리
-  const hy = Y - 19 + down + nod;
+  const hy = Y - 19 + down + nod - (pose === "drink" ? 1 : 0);
   if (s.longHair) px(g, CX - 6 + hx, hy + 1, 12, 9, s.hair);
   px(g, CX - 5 + hx, hy, 10, 10, skin);
-  px(g, CX - 5 + hx, hy - 1, 10, 4, s.hair);
+  px(g, CX - 5 + hx, hy - 1, 10, bowed ? 5 : 4, s.hair);   // 숙이면 정수리가 더 보임
   px(g, CX - 6 + hx, hy, 1, 4, s.hair); px(g, CX + 5 + hx, hy, 1, 4, s.hair);
 
   // 눈
@@ -286,14 +287,18 @@ export function drawStudent(g: Ctx, s: Student, o: DrawOpts): void {
       if (s.cheat?.tells.eraserNote) { px(g, CX - 9, Y - 3, 6, 4, "#fffbe8"); px(g, CX - 8, Y - 2, 4, 1, "#555"); px(g, CX - 8, Y, 3, 1, "#555"); }   // 펼친 쪽지
       px(g, CX - 7, Y + 3, 2, 2, skin); px(g, CX - 3, Y + 3, 2, 2, skin);
       break;
-    case "bottle":
-    case "drink": {
-      const by = pose === "drink" ? hy + 6 : Y - 8;
-      px(g, CX + 3, by, 3, 8, "#bfe3ef"); px(g, CX + 3, by + 3, 3, 2, "#3a8fbf");
-      px(g, CX + 2, by + 6, 2, 2, skin);
+    case "drink":
+      // 물 마시기: 병 입구를 입에 대고 오른쪽 아래로 비스듬히
+      px(g, CX + 1, hy + 8, 3, 3, "#bfe3ef"); px(g, CX + 3, hy + 10, 3, 3, "#3a8fbf"); px(g, CX + 5, hy + 12, 3, 3, "#bfe3ef");
+      px(g, CX + 6, hy + 13, 2, 2, skin);
       leftHand();
       break;
-    }
+    case "bottle":
+      // 물병 라벨 보기: 턱 아래 얼굴 앞으로 올려 들여다봄
+      px(g, CX + 1, hy + 9, 3, 8, "#bfe3ef"); px(g, CX + 1, hy + 12, 3, 2, "#3a8fbf");
+      px(g, CX, hy + 15, 2, 2, skin);
+      leftHand();
+      break;
     case "sleeve":
       px(g, CX - 8, Y - 2, 7, 3, skin); px(g, CX - 6, Y - 1, 3, 1, "#4a5a8a"); writeHand();
       break;

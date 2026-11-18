@@ -40,4 +40,4 @@ export type Pose =
 export const HABITS: Pose[] = ["nosepush", "glassesoff", "lookaround", "ear", "stretch", "think", "wrist", "drink", "cough", "stare", "neck", "clothes"];
 
 /** 고개를 숙이는 동작 */
-export const HEAD_DOWN = new Set<Pose>(["wrist", "underdesk", "palm", "sleeve", "deskdown", "eraser", "flinch"]);
+export const HEAD_DOWN = new Set<Pose>(["wrist", "underdesk", "palm", "sleeve", "deskdown", "eraser", "flinch", "bottle"]);
