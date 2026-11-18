@@ -90,6 +90,10 @@ export function drawStudentBack(g: Ctx, s: Student, o: DrawOpts): void {
       break;
     case "underdesk":
       px(g, CX - 9, Y - 6, 2, 8, sh); px(g, CX + 7, Y - 6, 2, 8, sh);           // 팔이 아래로
+      if (s.cheat && s.cheat.family === "phone" && s.acting) { g.fillStyle = "rgba(127,200,255,0.6)"; g.fillRect(CX - 5, Y - 2, 10, 3); }   // 무릎 위 화면 불빛이 어깨 너머로
+      break;
+    case "bottle":
+      px(g, CX + 6, Y - 12, 2, 5, sh); px(g, CX + 4, hy + 9, 3, 7, "#bfe3ef"); px(g, CX + 4, hy + 11, 3, 2, "#3a8fbf");   // 얼굴 앞으로 든 물병이 어깨 옆으로 보임
       break;
     case "wrist":
       px(g, CX - 9, Y - 8, 3, 3, sh);

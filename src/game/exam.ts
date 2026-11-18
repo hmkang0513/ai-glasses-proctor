@@ -64,7 +64,8 @@ export class ExamScene {
   askLeft = 1;
   goalToasted = false;
   panelCloseAt = 0;                       // 적발 뒤 들킨 표정을 잠깐 보여 주고 닫음
-  autoWalk = -1; autoWalkUntil = 0;       // 멀리서 F: 그 학생 옆까지 자동으로 걸어감
+  autoWalk = -1; autoWalkUntil = 0;
+  closeEnough = -1;                        // 자동으로 다가간 학생: 3m 안이면 F로 처리 가능       // 멀리서 F: 그 학생 옆까지 자동으로 걸어감
   panelOpens = 0;                         // 흐릿함 안내는 처음 3번만
   newSeen = new Set<string>();            // 이번 판에 'NEW'를 띄운 수법                            // H: 부감독에게 묻기 (교시당 1번)
   flies: Array<{ t0: number; family: string }> = [];   // 압수품이 명부로 날아감
@@ -254,7 +255,7 @@ export class ExamScene {
   }
 
   private updateAmbient(): void {
-    if (this.t >= this.pathT) { this.s.path.push([this.s.period, this.cam.x, this.cam.z]); this.pathT = this.t + 0.5; }
+    if (this.pre <= 0 && this.t >= this.pathT) { this.s.path.push([this.s.period, this.cam.x, this.cam.z]); this.pathT = this.t + 0.5; }
     if (this.t >= this.nextAmbient) {
       const seated = this.students.filter((x) => x.status === "seated");
       if (seated.length) {
@@ -579,7 +580,12 @@ export class ExamScene {
       const reached = this.dist(st) <= ACCUSE_RANGE - 0.2;
       const stuck = this.rt > this.autoWalkUntil;
       if (mx || mz || st.status !== "seated") this.autoWalk = -1;   // 직접 움직이면 취소
-      else if (reached || (stuck && this.dist(st) <= 3.0)) { this.autoWalk = -1; this.panel = st.i; this.tryAccuse(true); }   // 책상에 막혀도 3m 안이면 처리
+      else if (reached || (stuck && this.dist(st) <= 3.0)) {
+        // 도착: 멈춰서 관찰창을 선명하게 보여 줌. 적발은 직접 한 번 더 (엉뚱한 학생을 바로 잡지 않게)
+        this.autoWalk = -1; this.panel = st.i; this.closeEnough = st.i;
+        this.cam.yaw = Math.atan2(st.x - this.cam.x, st.z - this.cam.z);
+        this.toast(`${st.seat}번 옆에 왔습니다. 확인하고 ${this.touchMemo ? "적발 버튼" : "F"}를 한 번 더`, 2.5);
+      }
       else if (stuck) { this.autoWalk = -1; this.toast("책상에 막혔습니다. 옆 통로로 돌아가세요", 2.5); }
       else {
         // 가까운 쪽 통로의 학생 옆으로 다가감 (같은 열 앞뒤에서 책상에 막히지 않게)
@@ -730,8 +736,8 @@ export class ExamScene {
       } else this.toast(this.touchMemo ? "관찰 버튼으로 먼저 살펴보세요" : "관찰(E)한 학생만 적발할 수 있습니다", 2);
       return;
     }
-    if (!near && this.dist(st) > ACCUSE_RANGE) {
-      if (this.mode === "fp") { this.autoWalk = st.i; this.autoWalkUntil = this.rt + 2.5; }   // 알아서 옆까지 걸어가 처리
+    if (!near && this.dist(st) > (this.closeEnough === st.i ? 3.0 : ACCUSE_RANGE)) {
+      if (this.mode === "fp") { this.autoWalk = st.i; this.autoWalkUntil = this.rt + 2.5; this.panel = -1; this.toast(`${st.seat}번 쪽으로 다가갑니다`, 1.5); }   // 옆까지 걸어가서 멈춤
       else this.toast("조금 더 가까이 가서 조용히 처리하세요", 2);
       return;
     }
@@ -984,7 +990,7 @@ export class ExamScene {
         g.fillRect(x1 - L, y1, L + 1, 1); g.fillRect(x1, y1 - L, 1, L + 1);
         const d = this.dist(st);
         const touch = this.touchMemo;
-        const txt = !st.observed ? (touch ? "관찰 버튼" : "[E] 관찰") : d <= ACCUSE_RANGE ? (touch ? "적발 버튼 · 관찰 버튼으로 닫기" : "[F] 적발  [E] 닫기") : (touch ? "적발 버튼: 다가가서 처리" : "[F] 다가가서 적발");
+        const txt = !st.observed ? (touch ? "관찰 버튼" : "[E] 관찰") : d <= ACCUSE_RANGE ? (touch ? "적발 버튼 · 관찰 버튼으로 닫기" : "[F] 적발  [E] 닫기") : (touch ? "적발 버튼: 옆으로 다가가기" : "[F] 옆으로 다가가기");
         g.font = KR(12);
         const lw = Math.ceil(g.measureText(`${st.seat}번 ${txt}`).width) + 8;
         const ly = this.panel >= 0 ? 42 : Math.min(H - 20, y1 + 4);   // 패널이 열려 있으면 위쪽에
@@ -1000,7 +1006,7 @@ export class ExamScene {
         px(g, 10, 166, 196, 96, "rgba(8,10,24,0.6)");                     // 정전: 패널도 어둡게
         if (st.ledOn) px(g, 10 + 52 * 1.5, 166 + 23 * 1.5, 3, 3, "#ff3b30");   // LED만은 어둠 속에서 보임
       }
-      if (blur > 0 && this.panelOpens <= 3) label(g, "멀어서 흐릿합니다 · 조금 더 다가가세요", 14, 248, { font: KR(11), color: COLORS.accent });
+      if (blur >= 0.5 && this.panelOpens <= 3) label(g, "멀어서 흐릿합니다 · 조금 더 다가가세요", 14, 248, { font: KR(11), color: COLORS.accent });
       // 1~10회차: 지금 본 것을 손글씨 한 줄로 (판단이 아니라 본 것을 말로 확인)
       if (this.s.room.level <= 20 && blur < 0.5 && st.status === "seated") {
         const n = this.noticeFor(st, behind);
@@ -1078,7 +1084,7 @@ export class ExamScene {
     }
     if (this.collectT > 0) label(g, `답안지 회수 중 ${Math.ceil(this.collectT)}초 · 아직 펜을 움직이는 학생이 있으면 관찰 후 F`, 50, 112, { font: KR(12), color: COLORS.accent });
     // 10회차 열화상 시범: 시계 확인 12초 동안 부감독 안경으로 뜨거움 → 식음을 보여 줌 (횟수 소모 없음)
-    const demoOn = this.pre > 12 && (this.s.room.level === 10 || this.s.room.level === 16) && this.s.period === 0;
+    const demoOn = this.pre > 12 && (this.s.room.level === 10 || this.s.room.level === 16) && this.s.period === 0 && !this.memoOpen;
     if (demoOn && this.s.room.level === 16 && this.mode === "fp" && this.panel < 0) {
       // 16회차 전파 탐지기 시범: 부감독 무전기를 켜고 끄며 바늘이 움직이는 것을 보여 줌
       const on = this.pre > 14.5;

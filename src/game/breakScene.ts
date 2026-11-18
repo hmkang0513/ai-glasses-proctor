@@ -50,7 +50,7 @@ export class BreakScene {
       g.font = KR(13); g.fillStyle = COLORS.navy; g.fillText(`${PERIODS[per].name.slice(0, 3)} 돌아보기`, 72, 30);
       g.font = KR(12); g.fillStyle = COLORS.ink;
       if (lines.length) lines.slice(0, 3).forEach((l, i) => g.fillText(l, 72, 50 + i * 15));
-      else g.fillText("이번 교시엔 적발이 없었어요. 머리 위 \"!\"와 Z 표시를 써 보세요.", 72, 50);
+      else g.fillText("이번 교시엔 적발이 없었어요. 수상한 학생은 Z(의심 표시)로 표시해 두고, 막히면 H(부감독에게 묻기).", 72, 50);
       g.font = KR(11); g.fillStyle = "#7d776b";
       const done = END_WHEN_ALL_CAUGHT && !this.s.room.students.some((x) => isCheating(x));
       const foot = done ? "이 교실은 모두 찾았어요. 잘했어요!" : "다음 교시에도 비슷한 것이 보일 수 있어요.";

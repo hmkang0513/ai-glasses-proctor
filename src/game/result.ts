@@ -44,17 +44,18 @@ function chiefComment(d: ResultData, s: Session): [string, string] {
   if (d.prevented.length + d.caughtGate.length > 0) pool.push("입실 검사에서 미리 막아 냈네요.", "들어오기 전에 기기를 찾아냈어요. 든든합니다.");
   if (marked >= 2 && real >= 1) pool.push(`의심 표시 ${marked}명 중 ${real}명이 진짜였어요. 눈썰미가 좋네요.`);
   if (caught > 0 && back) pool.push("뒷줄까지 꼼꼼히 돌았네요.");
-  if (caught > 0) pool.push("부정행위자를 찾아냈습니다. 잘했어요.");
+  if (caught > 0 && d.wrong.length < 2) pool.push("부정행위자를 찾아냈습니다. 잘했어요.");
+  if (caught > 0 && d.wrong.length >= 2) pool.push("찾아낸 학생도 있었어요. 끝까지 수고했습니다.");
   if (!pool.length) pool.push(d.wrong.length ? "끝까지 자리를 지켰습니다. 수고했어요." : "무고한 학생을 잘못 잡지 않았어요. 그것도 중요한 일이에요.", "오늘은 조용한 교실이었네요. 수고했어요.");
   // 상황에 가장 맞는 앞쪽 문장 우선, 지난번과 같은 문장은 피함
   const last = s.save.lastComment ?? "";
   const good = pool.find((x) => x !== last) ?? pool[0];
   s.save.lastComment = good;
   let tip = "";
-  if (d.missed.length && !back) tip = "다음엔 뒤쪽 줄도 한 번 가 봅시다.";
-  else if (d.missed.length && !caught) tip = "머리 위 \"!\"나 H(부감독에게 묻기)를 써 보세요.";
+  if (d.wrong.length) tip = "애매하면 조금 더 지켜보세요. 확실할 때만 잡아도 충분합니다.";
+  else if (d.missed.length && !back) tip = "다음엔 뒤쪽 줄도 한 번 가 봅시다.";
+  else if (d.missed.length && !caught) tip = s.room.level <= 8 ? "머리 위 \"!\"를 보거나 H(부감독에게 묻기)를 써 보세요." : "막히면 H를 눌러 부감독에게 물어보세요.";
   else if (d.missed.length) tip = "놓친 학생은 배치도의 빨간 칸이에요.";
-  else if (d.wrong.length) tip = "확실할 때만 잡아도 충분합니다.";
   return [good, tip];
 }
 
@@ -259,7 +260,7 @@ export class ResultScene {
       const acts = s.acts.filter((a) => a.seat === m.seat);
       const seen = acts.filter((a) => a.near).length;
       const why = acts.length ? ` (행동 ${acts.length}번 중 가까이서 본 건 ${seen}번)` : "";
-      if (box(`놓친 학생 · ${m.seat}번 · ${m.cheat!.name}`, why.trim() + (m.overtime ? " 종료령 뒤에도 답안을 썼습니다." : "") + " " + m.cheat!.hint, "#9c2d23", "#f7e3df")) shown++;
+      if (box(`놓친 학생 · ${m.seat}번 · ${m.cheat!.name}`, (m.cheat!.hint + " " + why.trim() + (m.overtime ? " 종료령 뒤에도 썼습니다." : "")).trim(), "#9c2d23", "#f7e3df")) shown++;
     }
     if (d.missed.length > shown) { g.font = KR(11); g.fillStyle = "#9c2d23"; g.fillText(`놓친 학생 외 ${d.missed.length - shown}명 더 (수첩에 기록됨)`, sx, Math.min(y + 2, 197)); }
     for (const w of d.wrong.slice(0, Math.max(0, 2 - d.missed.length))) {
@@ -307,8 +308,9 @@ export class ResultScene {
     }
     if (s.goal) {   // 오늘의 작은 목표: 해냈으면 별 도장 (D 등급이면 그 줄 오른쪽에 작게)
       const ok = goalDone(s);
-      g.font = KR(d.pass ? 11 : 9); g.fillStyle = ok ? "#b8860b" : "#9a948a";
-      g.fillText(`${ok ? "★" : "☆"} 작은 목표 · ${s.goal.text}${ok ? " 달성!" : ""}`, d.pass ? 22 : 140, d.pass ? 249 : 251);
+      g.font = KR(d.pass ? 11 : 10); g.fillStyle = ok ? "#b8860b" : "#9a948a";
+      if (d.pass) g.fillText(`${ok ? "★" : "☆"} 작은 목표 · ${s.goal.text}${ok ? " 달성!" : ""}`, 22, 249);
+      else g.fillText(ok ? "★ 작은 목표 달성" : "☆ 작은 목표", 150, 250);   // D 줄 옆에 짧게 (버튼과 겹치지 않게)
     }
     if (!d.pass) { g.font = KR(12); g.fillStyle = "#9c2d23"; g.fillText(s.replaced ? "민원 가득: 감독관 교체" : "D 등급: 다시 맡습니다", 22, 249); }
 
