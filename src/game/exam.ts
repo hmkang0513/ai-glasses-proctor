@@ -323,6 +323,20 @@ export class ExamScene {
     return Math.hypot(st.x - this.cam.x, st.z - this.cam.z);
   }
 
+  /** 명부의 학생 한 줄 소개: 모든 학생에게 있음(빈칸이 신호가 되지 않게). 습관에서 만들고, 없으면 평범한 한 줄 */
+  introFor(st: Student): string {
+    const H: Partial<Record<string, string>> = {
+      think: "어려운 문제에서 턱을 괴는 편", stretch: "오래 앉아 있으면 기지개를 켬", drink: "물을 자주 마심", cough: "감기 기운이 있음",
+      lookaround: "목이 뻐근하다고 함", ear: "귀를 자주 만지는 버릇", clothes: "교복이 커서 자꾸 고쳐 입음", neck: "목을 자주 돌림",
+      nosepush: "안경이 자꾸 흘러내림", glassesoff: "렌즈를 자주 닦음", temple: "안경을 자주 고쳐 씀", wrist: "시계를 자주 봄",
+      underdesk: "다리가 자주 저림", palm: "손이 차가워 자주 비빔", glance: "주변을 잘 살피는 편", window: "창가 자리를 좋아함",
+    };
+    const plain = ["조용한 편", "필기가 빠름", "아침을 거르고 옴", "도시락을 챙겨 옴", "일찍 입실함", "수험표를 두 번 확인함"];
+    let line = st.timid ? "수줍음이 많음" : (H[st.habits[st.habits.length - 1]] ?? plain[(st.i * 7 + this.s.room.level) % plain.length]);
+    if (isCheating(st) && (st.i + this.s.room.level) % 2 === 0) line = plain[(st.i * 5 + this.s.room.level) % plain.length];   // 부정행위자도 평범하게
+    return (st.alumnus ? "재응시 · " : "") + line;
+  }
+
   /** 머리 위 "!" (1~5회차 1.2초, 6~8회차는 6m 안에서 0.8초) */
   bangFor(st: Student): boolean {
     const lv = this.s.room.level, since = this.t - (this.actStart[st.i] ?? -99);
@@ -982,6 +996,7 @@ export class ExamScene {
       }
       if (this.t < this.radioUntil) this.drawRadio(g, st);
       const k = (key: string, name: string) => (this.touchMemo ? name : `${key} ${name}`);
+      label(g, `명부: ${this.introFor(st)}`, 210, 252, { font: KR(10), color: "#9aa69f" });   // 학생 한 줄 소개 (명부 메모)
       label(g, `${st.seat}번 ${this.cam.z > st.z + 0.15 ? "어깨 너머 " : ""}관찰 중 · ${k("T", "열화상")} ${this.thermalCharges}회${this.s.room.level >= 16 ? ` · ${k("R", "전파")} ${this.radioCharges}회` : ""}`, 8, 150, { font: KR(12), bg: "none", color: COLORS.chalk });
     }
   }
@@ -1032,6 +1047,15 @@ export class ExamScene {
       label(g, `듣기평가 ${Math.ceil(10 + LISTENING_SECONDS - this.t)}초`, 110, 20, { font: KR(11), color: COLORS.accent });
     }
     if (this.collectT > 0) label(g, `답안지 회수 중 ${Math.ceil(this.collectT)}초 · 아직 펜을 움직이는 학생이 있으면 관찰 후 F`, 50, 112, { font: KR(12), color: COLORS.accent });
+    // 10회차 열화상 시범: 시계 확인 12초 동안 부감독 안경으로 뜨거움 → 식음을 보여 줌 (횟수 소모 없음)
+    if (this.pre > 0 && this.s.room.level === 10 && this.s.period === 0 && this.mode === "fp" && this.panel < 0) {
+      const base = this.students.find((x) => x.glasses) ?? this.students[0];
+      const touching = this.pre > 9, hotNow = this.pre > 5;
+      const demo: Student = { ...base, cheat: null, aiGen: 2, ledOn: false, status: "seated", outcome: base.outcome,
+        pose: touching ? "temple" : "write", heatUntil: hotNow ? this.t + 1 : this.t - 1, glasses: base.glasses };
+      drawCloseup(g, demo, this.t, 10, 166, !touching, 0, false);
+      label(g, touching ? "부감독 시범: 안경다리를 누릅니다" : hotNow ? "만진 직후 열화상(T) → 안경다리가 뜨겁다!" : "몇 초 지나면 식어서 안 보여요. 만진 직후 10초 안에 T!", 8, 150, { font: KR(12), color: hotNow ? COLORS.accent : COLORS.chalk });
+    }
     if (this.pre > 0) label(g, "학생들이 시계를 책상 위에 올려 둡니다 · 스마트워치는 관찰(E) 후 F로 보관", 40, 112, { font: KR(12), color: COLORS.accent });
     // 남은 시간 막대
     px(g, 6, 24, 100, 4, COLORS.line);
