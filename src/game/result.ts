@@ -30,6 +30,24 @@ export interface ResultData {
   twist: string | null;      // 결과에서 밝혀지는 반전
 }
 
+/** 수석감독관 한마디 [칭찬, 아쉬운 점(없으면 "")] */
+function chiefComment(d: ResultData, s: Session): [string, string] {
+  const caught = d.caughtExam.length + d.caughtGate.length + d.prevented.length;
+  const firstT = Math.min(...s.catches.filter((c) => c.correct && c.period === 0).map((c) => c.t), 999);
+  const back = s.path.some(([, , z]) => z > 9.2);
+  let good = "끝까지 자리를 지켰습니다. 수고했어요.";
+  if (caught > 0 && firstT < 60) good = "첫 적발이 1분도 안 걸렸습니다!";
+  else if (caught > 0 && !d.wrong.length) good = "무고한 학생을 한 명도 잡지 않았습니다. 침착했어요.";
+  else if (d.prevented.length + d.caughtGate.length > 0) good = "입실 검사에서 미리 막아 냈네요.";
+  else if (back) good = "뒷줄까지 꼼꼼히 돌았네요.";
+  else if (caught > 0) good = "부정행위자를 찾아냈습니다. 잘했어요.";
+  let tip = "";
+  if (d.missed.length && !back) tip = "다음엔 뒤쪽 줄도 한 번 가 봅시다.";
+  else if (d.missed.length) tip = "놓친 학생의 행동은 위 칸에서 확인해 보세요.";
+  else if (d.wrong.length) tip = "확실할 때만 잡아도 충분합니다.";
+  return [good, tip];
+}
+
 export function computeResult(s: Session): ResultData {
   const st = s.room.students;
   const caughtExam = st.filter((x) => x.outcome === "caught");
@@ -205,11 +223,11 @@ export class ResultScene {
     }
     // 공개: 놓친 학생 / 오인
     let y = 145;
-    const BOTTOM = 214;            // "외 n명" 줄과 버튼(232) 위까지만
+    const BOTTOM = 196;            // "외 n명" 줄과 수석감독관 한마디(208~), 버튼(232) 위까지만
     const box = (title: string, body: string, color: string, bg: string) => {
       g.font = KR(11);
       const room = Math.floor((BOTTOM - y - 18) / 13);
-      if (room < 1) return;        // 자리가 없으면 그리지 않음
+      if (room < 1) return false;  // 자리가 없으면 그리지 않음
       let lines = wrapText(g, body, 214);
       const cap = Math.min(3, room);
       if (lines.length > cap) { lines = lines.slice(0, cap); lines[cap - 1] = lines[cap - 1].replace(/.{2}$/, "…"); }
@@ -219,16 +237,17 @@ export class ResultScene {
       g.font = KR(11); g.fillStyle = COLORS.ink;
       lines.forEach((l, i) => g.fillText(l, sx + 8, y + 17 + i * 13));
       y += hgt + 4;
+      return true;
     };
     if (d.twist) box("반전", d.twist, "#6a2a8a", "#ece0f2");
+    let shown = 0;
     for (const m of d.missed.slice(0, 2)) {
       const acts = s.acts.filter((a) => a.seat === m.seat);
       const seen = acts.filter((a) => a.near).length;
       const why = acts.length ? ` (행동 ${acts.length}번 중 가까이서 본 건 ${seen}번)` : "";
-      box(`놓친 학생 · ${m.seat}번 · ${m.cheat!.name}`, why.trim() + (m.overtime ? " 종료령 뒤에도 답안을 썼습니다." : "") + " " + m.cheat!.hint, "#9c2d23", "#f7e3df");
+      if (box(`놓친 학생 · ${m.seat}번 · ${m.cheat!.name}`, why.trim() + (m.overtime ? " 종료령 뒤에도 답안을 썼습니다." : "") + " " + m.cheat!.hint, "#9c2d23", "#f7e3df")) shown++;
     }
-    const shown = Math.min(2, d.missed.length);
-    if (d.missed.length > shown) { g.font = KR(11); g.fillStyle = "#9c2d23"; g.fillText(`놓친 학생 외 ${d.missed.length - shown}명 더 (수첩에 기록됨)`, sx, Math.min(y + 2, 218)); }
+    if (d.missed.length > shown) { g.font = KR(11); g.fillStyle = "#9c2d23"; g.fillText(`놓친 학생 외 ${d.missed.length - shown}명 더 (수첩에 기록됨)`, sx, Math.min(y + 2, 197)); }
     for (const w of d.wrong.slice(0, Math.max(0, 2 - d.missed.length))) {
       const reason = (w.lastHabit && HABIT_NAME[w.lastHabit]) || w.habits.map((h) => HABIT_NAME[h]).filter(Boolean)[0] || "평범한 행동";
       const byHint = s.aideHintSeats.includes(w.seat);
@@ -236,6 +255,16 @@ export class ResultScene {
       box(`오인 · ${w.seat}번`, byHint ? `부감독 헛기침 힌트가 틀렸습니다(힌트는 약 70%만 맞음). 실제로는 ${reason}이었습니다.` : `${reason}이었습니다. 무고한 학생이었습니다.`, "#5a554b", "#e2ded3");
     }
     if (!d.missed.length && !d.wrong.length) box("깨끗한 감독", "놓친 학생도, 잘못 잡은 학생도 없습니다.", "#2f6b3a", "#e0eddc");
+    // 수석감독관 한마디: 잘한 점 먼저, 아쉬운 점은 하나만 부드럽게
+    {
+      const [good, tip] = chiefComment(d, s);
+      g.fillStyle = COLORS.navy;
+      for (const [k, line] of [good, tip].filter(Boolean).entries()) {
+        const text = (k === 0 ? "수석감독관: " : "") + line;
+        for (let fs = 11; fs >= 8; fs--) { g.font = KR(fs); if (g.measureText(text).width <= 226) break; }
+        g.fillText(text, sx, 207 + k * 12);
+      }
+    }
 
     // 처분·수첩
     // 왼쪽 아래 (폭 205px 안에서 줄바꿈)

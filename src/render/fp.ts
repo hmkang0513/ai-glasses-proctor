@@ -104,7 +104,7 @@ export function drawRoom(g: Ctx, cam: Camera): void {
 }
 
 /** 감독 명부(클립보드)를 든 손 */
-export function drawClipboard(g: Ctx, t: number, moving: boolean): void {
+export function drawClipboard(g: Ctx, t: number, moving: boolean, checks = 0): void {
   const bob = moving ? Math.round(Math.sin(t * 9) * 2) : 0;
   const x = W - 96, y = H - 66 + bob;
   px(g, x, y, 62, 80, "#5a3f28");
@@ -113,6 +113,10 @@ export function drawClipboard(g: Ctx, t: number, moving: boolean): void {
   for (let i = 0; i < 8; i++) {
     px(g, x + 10, y + 16 + i * 7, 4, 4, "#9aa");
     px(g, x + 18, y + 17 + i * 7, 26 - (i % 3) * 5, 2, "#aab");
+    if (i < checks) {   // 적발할 때마다 빨간 펜 체크
+      const cx = x + 9, cy = y + 16 + i * 7;
+      px(g, cx, cy + 2, 2, 2, "#c8322a"); px(g, cx + 2, cy + 3, 2, 2, "#c8322a"); px(g, cx + 4, cy + 1, 2, 2, "#c8322a"); px(g, cx + 6, cy - 1, 2, 2, "#c8322a");
+    }
   }
   px(g, x - 6, y + 40, 16, 14, "#e0b48e");
   px(g, x - 14, y + 46, 12, 30, "#39435a");

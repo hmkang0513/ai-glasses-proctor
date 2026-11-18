@@ -33,7 +33,7 @@ export function toggleMute(): boolean {
   return muted;
 }
 
-export type SoundKind = "buzz" | "cough" | "chair" | "click" | "whisper" | "page" | "tick" | "power" | "hum";
+export type SoundKind = "buzz" | "cough" | "chair" | "click" | "whisper" | "page" | "tick" | "power" | "hum" | "tap";
 
 /** pan: -1(왼쪽)~1(오른쪽), vol: 0~1 */
 /** muffled: 등 뒤에서 난 소리는 먹먹하게 (앞뒤 구분) */
@@ -74,6 +74,13 @@ export function play(kind: SoundKind, pan = 0, vol = 1, muffled = false): void {
         g.gain.exponentialRampToValueAtTime(0.0001, t + off + 0.15);
         o.connect(g).connect(out); o.start(t + off); o.stop(t + off + 0.16);
       }
+      break;
+    }
+    case "tap": {           // 적발: 감독관이 책상을 "톡" 두드림 (나무 소리)
+      const o = ac.createOscillator(); const g = ac.createGain();
+      o.type = "triangle"; o.frequency.setValueAtTime(320, t); o.frequency.exponentialRampToValueAtTime(140, t + 0.08);
+      env(g, 0.35 * vol, 0.002, 0.12);
+      o.connect(g).connect(out); o.start(t); o.stop(t + 0.14);
       break;
     }
     case "cough": {         // 기침: 걸러진 잡음 두 번

@@ -58,7 +58,10 @@ export class ExamScene {
   lastGlance: number[] = [];               // 학생별 마지막 흘끗 시각
   collectT = 0;                            // 종료령 뒤 답안지 회수 남은 시간
   collectDone = false;
-  penAt = 0;                               // 다음 펜 소리 시각
+  penAt = 0;
+  hitstopUntil = 0;
+  flies: Array<{ t0: number; family: string }> = [];   // 압수품이 명부로 날아감
+  notice = { seat: -1, text: "", until: 0, color: "" };   // 관찰 패널의 '눈에 띈 것' 한 줄                               // 다음 펜 소리 시각
   radioCharges = 2;
   radioUntil = -1;
   radioExplained = false;
@@ -308,6 +311,41 @@ export class ExamScene {
     return Math.hypot(st.x - this.cam.x, st.z - this.cam.z);
   }
 
+  /** 관찰 패널에서 지금 눈에 띈 것 (단서면 주황, 평범한 행동이면 회색). 없으면 null */
+  noticeFor(st: Student, behind: boolean): [string, string] | null {
+    const ch = isCheating(st) ? st.cheat! : null;
+    const tl = ch?.tells ?? {};
+    const hot = "#f0b54a", calm = "#cfd8d2";
+    const p = st.pose;
+    if (this.collectT > 0 && st.overtime) return ["종료령이 울렸는데 아직 쓰고 있다!", hot];
+    if (ch) {
+      if (st.ledOn) return ["안경다리에서 빨간 불빛!", hot];
+      if (p === "palm" && tl.palmNote) return ["손바닥에 글씨가 보인다!", hot];
+      if (p === "eraser" && tl.eraserNote) return ["지우개 포장지 속에 쪽지가 있다!", hot];
+      if (p === "underdesk" && ch.family === "phone") return ["책상 밑에서 화면 불빛이 보인다!", hot];
+      if (p === "wrist" && ch.family === "watch") return ["꺼져 있던 시계 화면이 켜졌다!", hot];
+      if (p === "side" && ch.id === "peek") return ["옆자리 답안지를 오래 보고 있다!", hot];
+      if (p === "bottle" && tl.bottleNote) return ["물병 라벨 안쪽에 글씨가 있다!", hot];
+      if (p === "sleeve" && tl.armNote) return ["소매 안쪽 팔에 글씨가 있다!", hot];
+      if (p === "ruler" && tl.rulerNote) return ["자 뒷면에 글씨가 있다!", hot];
+      if (!behind && p === "mouth") return ["입술이 작게 움직인다", hot];
+      if (tl.palmNote && p !== "palm") return ["쥔 주먹 사이로 파란 잉크가 살짝 비친다", hot];
+      if (tl.eraserNote && p !== "eraser") return ["지우개 포장지가 조금 벌어져 있다", hot];
+      if (behind && tl.earpiece) return ["귀 뒤에 작은 것이 붙어 있다", hot];
+      if (behind && tl.neckDevice) return ["목 뒤에 검은 것이 보인다", hot];
+      if (!behind && st.aiGen === 1 && st.glasses && p !== "glassesoff") return ["안경다리가 유난히 두껍다", hot];
+    }
+    // 무고한 행동: 안심시키는 한 줄
+    const calmText: Partial<Record<string, string>> = {
+      temple: "그냥 안경을 고쳐 쓴 것 같다", nosepush: "안경이 흘러내려 밀어 올렸다", glassesoff: "렌즈를 닦고 있다",
+      palm: "손을 비비고 있다. 추운가 보다", underdesk: "다리를 긁고 있다", wrist: "시계로 남은 시간을 본다",
+      lookaround: "잠깐 두리번거렸다", think: "고민 중인 것 같다", stretch: "기지개를 켰다", drink: "물을 마신다",
+      cough: "기침을 한다", ear: "귀를 긁었다", neck: "목을 돌린다", clothes: "옷매무새를 고친다", glance: "감독관 쪽을 힐끗 봤다",
+    };
+    if (!ch && calmText[p]) return [calmText[p]!, calm];
+    return null;
+  }
+
   /** 학생이 감독관을 의식하는지: 감독관이 앞(칠판 쪽)에 있으면 시야 안, 등 뒤면 최근 5초 안에 흘끗 돌아본 경우만 */
   noticed(st: Student): boolean {
     if (!this.watched(st)) return false;
@@ -345,6 +383,7 @@ export class ExamScene {
   update(dt: number, inp: Input): void {
     if (this.ended) return;
     this.rt += dt;
+    if (this.rt < this.hitstopUntil) return;   // 적발 순간 아주 잠깐 멈춤 (손맛)
     this.touchMemo = inp.touchMode;
     // 휴대폰: 화면 버튼 등록 (명부를 보는 중이면 터치는 닫기용)
     this.touchUi = inp.touchMode && !this.memoOpen ? this.buildTouchUi() : [];
@@ -604,6 +643,9 @@ export class ExamScene {
     this.panel = -1;
     if (correct) {
       this.caughtThisPeriod++;
+      this.hitstopUntil = this.rt + 0.15;
+      play("tap", 0, 1, false);
+      this.flies.push({ t0: this.rt, family: st.cheat?.family ?? "note" });
       this.toast(`${st.seat}번 학생 · 기기 압수, 조용히 퇴실`, 3);
       if (END_WHEN_ALL_CAUGHT && !this.students.some((o) => isCheating(o))) {
         this.toast("이 교실의 부정행위자를 모두 찾았습니다", 3, COLORS.accent);
@@ -762,10 +804,22 @@ export class ExamScene {
       // CCTV에서 표시한 학생 머리 위 표시
       if (it.kind === "seat" && this.marks.has(it.st.i) && it.st.status === "seated") px(bg, fx - 2, top - 6, 4, 4, COLORS.accent);
     }
-    drawClipboard(bg, this.t, this.moving);
+    drawClipboard(bg, this.t, this.moving, Math.min(8, this.s.catches.filter((c) => c.correct).length - this.flies.filter((f) => this.rt - f.t0 < 0.7).length));
     const src = bg.getImageData(0, 0, W, H);
     applyLight(src, this.dst, this.presetNow(), lights);
     g.putImageData(this.dst, 0, 0);
+    for (const f of this.flies) {
+      const u = (this.rt - f.t0) / 0.7;
+      if (u < 0 || u > 1) continue;
+      const e = 1 - (1 - u) * (1 - u);
+      const fx = Math.round(W / 2 + (W - 70 - W / 2) * e), fy = Math.round(H / 2 + (H - 40 - H / 2) * e - Math.sin(u * Math.PI) * 30);
+      const icon: Record<string, [string, string]> = { ai: ["#222", "#ff3b30"], phone: ["#111", "#7fc8ff"], watch: ["#111", "#1f6f8b"], note: ["#fffbe8", "#3a4a8a"], earpiece: ["#c99a7a", "#555"], camera: ["#333", "#888"] };
+      const [c1, c2] = icon[f.family] ?? icon.note;
+      const sz = 1.6 - e * 0.6;   // 날아가며 작아짐
+      const w2 = Math.round(10 * sz), h2 = Math.round(7 * sz);
+      px(g, fx - w2 - 1, fy - h2 - 1, w2 * 2 + 2, h2 * 2 + 2, "#1a1414"); px(g, fx - w2, fy - h2, w2 * 2, h2 * 2, c1); px(g, fx - Math.round(w2 / 2), fy - 1, w2, 3, c2);
+    }
+    this.flies = this.flies.filter((f) => this.rt - f.t0 < 0.7);
     for (const [bx, by] of bangs) {
       const yy = Math.round(by - 16 - Math.abs(Math.sin(this.t * 8)) * 3);
       px(g, Math.round(bx) - 5, yy - 1, 10, 13, "#1a1414");   // 어두운 테두리 (배경에 묻히지 않게)
@@ -809,6 +863,12 @@ export class ExamScene {
         if (st.ledOn) px(g, 10 + 52 * 1.5, 166 + 23 * 1.5, 3, 3, "#ff3b30");   // LED만은 어둠 속에서 보임
       }
       if (blur > 0) label(g, "멀어서 흐릿합니다 · 조금 더 다가가세요", 14, 248, { font: KR(11), color: COLORS.accent });
+      // 1~10회차: 지금 본 것을 손글씨 한 줄로 (판단이 아니라 본 것을 말로 확인)
+      if (this.s.room.level <= 10 && blur < 0.5) {
+        const n = this.noticeFor(st, behind);
+        if (n) this.notice = { seat: st.seat, text: n[0], until: this.rt + 2.5, color: n[1] };
+      }
+      if (this.notice.seat === st.seat && this.rt < this.notice.until) label(g, this.notice.text, 8, 132, { font: KR(12), color: this.notice.color });
       if (this.t < this.radioUntil) this.drawRadio(g, st);
       const k = (key: string, name: string) => (this.touchMemo ? name : `${key} ${name}`);
       label(g, `${st.seat}번 ${this.cam.z > st.z + 0.15 ? "어깨 너머 " : ""}관찰 중 · ${k("T", "열화상")} ${this.thermalCharges}회${this.s.room.level >= 16 ? ` · ${k("R", "전파")} ${this.radioCharges}회` : ""}`, 8, 150, { font: KR(12), bg: "none", color: COLORS.chalk });
@@ -881,7 +941,7 @@ export class ExamScene {
       if (fill > 0) px(g, W - 58 + k * 17, 9, Math.round(14 * fill), 10, COLORS.alert);
     }
     if (this.mode === "fp" && !this.memoOpen && this.t < 6 && this.pre <= 0 && this.s.period === 0)
-      if (!this.touchUi.length) label(g, "화면 클릭 → 마우스 고정 · Q 명부 보기", W / 2 - 80, 52, { font: KR(10) });
+      if (!this.touchUi.length) label(g, "화면 클릭 → 마우스 고정 · Q 명부 보기", W - 178, 26, { font: KR(10) });
     // 정전 방송
     this.renderOutage(g);
     // 토스트
