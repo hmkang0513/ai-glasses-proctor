@@ -113,11 +113,15 @@ function drawHands(g: Ctx, s: Student, t: number): void {
     // 왼손
     if (pose === "palm") {
       px(g, 4, 30, 16, 14, sk);
-      if (tells.palmNote) { px(g, 7, 33, 9, 1, "#3a4a8a"); px(g, 7, 36, 7, 1, "#3a4a8a"); px(g, 7, 39, 8, 1, "#3a4a8a"); }
+      if (tells.palmNote) { px(g, 6, 32, 12, 2, "#3a4a8a"); px(g, 6, 36, 9, 2, "#3a4a8a"); px(g, 6, 40, 11, 2, "#3a4a8a"); }
     } else if (pose === "sleeve") {
       px(g, 0, 26, 22, 10, sk);
       if (tells.armNote) { px(g, 4, 29, 10, 1, "#3a4a8a"); px(g, 4, 32, 8, 1, "#3a4a8a"); }
-    } else px(g, 4, 36, 10, 8, sk);
+    } else {
+      px(g, 4, 36, 10, 8, sk);
+      // 쥔 주먹 사이로 손바닥 잉크가 살짝 비침 (가까이서 보면 늘 보이는 단서)
+      if (tells.palmNote) { px(g, 13, 38, 1, 4, "#3a4a8a"); px(g, 6, 43, 4, 1, "#3a4a8a"); }
+    }
     // 시계 (왼손목)
     if (s.watch !== "none") {
       const wx = 4, wy = pose === "palm" ? 44 : 44;

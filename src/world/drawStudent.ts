@@ -256,7 +256,16 @@ export function drawStudent(g: Ctx, s: Student, o: DrawOpts): void {
       px(g, CX - 7, Y - 1, 3, 2, sh); px(g, CX + 4, Y - 1, 3, 2, sh);
       break;
     case "palm":
-      px(g, CX - 5, Y - 3, 4, 3, skin); px(g, CX - 4, Y - 2, 2, 1, "#4a5a8a"); writeHand();
+      if (s.cheat?.tells.palmNote && s.cheat.id === "palm") {
+        // 손바닥을 가슴 앞으로 펴 들고 내려다봄: 손바닥에 파란 글씨
+        px(g, CX - 8, Y - 6, 2, 5, s.shirt);
+        px(g, CX - 7, Y - 9, 6, 5, skin);
+        px(g, CX - 6, Y - 8, 4, 1, "#3a4a8a"); px(g, CX - 6, Y - 6, 3, 1, "#3a4a8a");
+        writeHand();
+      } else {
+        // 손을 비빔 (손이 차가움)
+        px(g, CX - 3 + (wob % 2), Y + 2, 3, 3, skin); px(g, CX + 1 - (wob % 2), Y + 2, 3, 3, skin);
+      }
       break;
     case "eraser":
       px(g, CX - 6, Y + 1, 4, 3, "#f2f2f2"); px(g, CX - 6, Y + 1, 4, 1, "#4a7ac0");

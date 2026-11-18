@@ -61,8 +61,8 @@ export const CHEATS: CheatMethod[] = [
   },
   {
     id: "palm", no: 2, name: "손바닥 커닝페이퍼", family: "note", minLevel: 1, kind: "exam",
-    loop: [{ pose: "palm", dur: 1.4 }], interval: [6, 11], tells: { palmNote: true }, gate: {},
-    hint: "주먹 쥔 손을 펴서 손바닥에 쓴 메모를 내려다봤습니다.", source: "일반 수법",
+    loop: [{ pose: "palm", dur: 2.2 }], interval: [5, 9], tells: { palmNote: true }, gate: {},
+    hint: "주먹 쥔 손을 가슴 앞으로 펴 들고 손바닥에 쓴 메모를 내려다봤습니다. 가까이서 보면 쥔 주먹 사이로 잉크가 비칩니다. 손을 비비는 학생과 헷갈리지 마세요.", source: "일반 수법",
   },
   {
     id: "eraser", no: 3, name: "지우개 포장지 속 쪽지", family: "note", minLevel: 3, kind: "exam",
