@@ -98,8 +98,7 @@ export function updateStudent(s: Student, ctx: BehaviorCtx): void {
   if (t >= s.nextHabitAt && s.habits.length) {
     let p = s.habits[Math.floor(r() * s.habits.length)];
     // 기지개(만세)는 시험 중에 드묾: 4번 중 3번은 목만 가볍게 돌림, 같은 학생은 90초 안에 다시 안 함
-    if (p === "stretch" && (r() < 0.75 || t - s.lastStretchAt < 90)) p = "neck";
-    if (p === "stretch") s.lastStretchAt = t;
+    if (p === "stretch") p = "neck";   // 만세는 하지 않음 (예전 저장·테마에서 들어와도 목 돌리기로)
     if ((p === "nosepush" || p === "glassesoff" || p === "temple") && !s.glasses) {
       s.nextHabitAt = t + 5;
       return;

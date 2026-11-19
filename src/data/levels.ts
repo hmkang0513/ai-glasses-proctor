@@ -237,7 +237,7 @@ export function buildRoom(level: number, seed = level * 7919 + 13, alumnus: Alum
   const decoyN = level <= 2 ? 0 : level <= 5 ? 1 : Math.min(9, 2 + Math.floor(level / 6));   // 초반은 미끼를 거의 두지 않음
   const innocents = shuffle(r, students.filter((s) => !s.cheat));
   innocents.forEach((s, n) => {
-    const opts: Pose[] = ["think", "stretch", "drink", "cough", "ear", "clothes", "neck"];
+    const opts: Pose[] = ["think", "drink", "cough", "ear", "clothes", "neck"];   // 기지개(만세)는 시험 중엔 하지 않음 (사용자 요청)
     if (level > 2) opts.push("lookaround");   // 1~2회차는 AI 안경과 헷갈리는 두리번거림 없음
     if (s.glasses) opts.push("nosepush", "glassesoff");
     if (s.watch !== "none") opts.push("wrist");
@@ -253,7 +253,7 @@ export function buildRoom(level: number, seed = level * 7919 + 13, alumnus: Alum
     }
     s.habits = habits;
   });
-  for (const s of students) if (s.cheat) s.habits = [pick(r, ["think", "stretch", "drink"] as Pose[])];
+  for (const s of students) if (s.cheat) s.habits = [pick(r, ["think", "neck", "drink"] as Pose[])];
   for (const s of students) if (!s.cheat && level > 2 && r() < 0.1) s.habits.push("glance");   // 평범한 학생은 가끔만
   // 소심한 무고 학생 1~3명 (눈이 마주치면 움찔 → 움찔만으로는 범인을 확정할 수 없게)
   if (level > 2) for (const s of shuffle(r, students.filter((x) => !x.cheat)).slice(0, Math.max(1, Math.min(4, students.filter((x) => x.cheat).length)))) { s.timid = true; if (!s.habits.includes("glance")) s.habits.push("glance"); }
