@@ -19,6 +19,7 @@ export interface SaveData {
   lastComment?: string;   // 수석감독관 한마디 (같은 문장 연속 방지)
   usedEver?: string[];    // 한 번이라도 써 본 도구 (작은 목표는 안 써 본 것부터)
   lastGoal?: string;      // 직전 판 작은 목표
+  lastGoals?: string[];   // 최근 작은 목표 2개
   recentLines?: string[]; // 최근 교무실 대사 (3판 안 반복 금지)
   stats?: { caught: number; perfect: number; stars: number; s: number; postcard: boolean };   // 교무실 책상 꾸미기용 누적 기록
   desk?: string[];        // 교무실 책상에 생긴 물건
@@ -44,6 +45,7 @@ export function loadSave(): SaveData {
       lastComment: typeof d.lastComment === "string" ? d.lastComment : undefined,
       usedEver: Array.isArray(d.usedEver) ? d.usedEver.filter((x) => typeof x === "string") : [],
       lastGoal: typeof d.lastGoal === "string" ? d.lastGoal : undefined,
+      lastGoals: Array.isArray(d.lastGoals) ? d.lastGoals.slice(-2) : [],
       recentLines: Array.isArray(d.recentLines) ? d.recentLines.slice(-3) : [],
       stats: d.stats && typeof d.stats === "object" ? { caught: +d.stats.caught || 0, perfect: +d.stats.perfect || 0, stars: +d.stats.stars || 0, s: +d.stats.s || 0, postcard: !!d.stats.postcard } : undefined,
       desk: Array.isArray(d.desk) ? d.desk.filter((x) => typeof x === "string") : [],

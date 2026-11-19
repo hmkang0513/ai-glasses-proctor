@@ -73,7 +73,8 @@ export class ExamScene {
   rainAt = 0;
   look: RoomLook | undefined;               // 학교별 교실 풍경 (21회차~)
   // 반장의 제보 (11회차~, 교시당 1번, 항상 맞는 정보)
-  repI = -1; repAt = -1; repState = 0; repUntil = 0;                        // 자동으로 다가간 학생: 3m 안이면 F로 처리 가능       // 멀리서 F: 그 학생 옆까지 자동으로 걸어감
+  repI = -1; repAt = -1; repState = 0; repUntil = 0; repHeard = false;
+  lastHintAt = -99;                        // 부감독 힌트가 뜬 시각 (반장 제보와 겹치지 않게)                        // 자동으로 다가간 학생: 3m 안이면 F로 처리 가능       // 멀리서 F: 그 학생 옆까지 자동으로 걸어감
   panelOpens = 0;                         // 흐릿함 안내는 처음 3번만
   newSeen = new Set<string>();            // 이번 판에 'NEW'를 띄운 수법                            // H: 부감독에게 묻기 (교시당 1번)
   flies: Array<{ t0: number; family: string }> = [];   // 압수품이 명부로 날아감
@@ -300,18 +301,19 @@ export class ExamScene {
     if (this.repI >= 0) {
       const rep = this.students[this.repI];
       const busy = this.outage() || this.listening() || this.collectT > 0 || this.pre > 0;
-      if (this.repState === 0 && this.t >= this.repAt && !busy) {
+      if (this.repState === 0 && this.t >= this.repAt && !busy && Math.abs(this.t - this.lastHintAt) > 10 && Math.abs(this.t - this.aideHintAt) > 10) {
         if (!this.students.some((x) => isCheating(x))) this.repState = 2;
-        else { this.repState = 1; this.repUntil = this.t + 30; this.toast(`${rep.seat}번 반장이 조용히 손을 들었습니다 · 가까이 가서 E`, 3.5, COLORS.accent); }
+        else { this.repState = 1; this.repUntil = this.t + 60; this.toast(`${rep.seat}번 반장이 조용히 손을 들었습니다 · 가까이 가서 E`, 3.5, COLORS.accent); }
       }
       if (this.repState === 1) {
-        if (this.t > this.repUntil || rep.status !== "seated") this.repState = 2;   // 30초 지나면 손을 내림 (불이익 없음)
+        if (this.t > this.repUntil || rep.status !== "seated") this.repState = 2;   // 60초 지나면 손을 내림 (불이익 없음, 다가가 E 하면 그래도 말해 줌)
         else { rep.habitPose = "handup"; rep.pose = "handup"; rep.habitT = 0.3; }
       }
     }
     this.updateAmbient();
     if (this.aideHintAt > 0 && this.t >= this.aideHintAt) {
       this.aideHintAt = -1;
+      this.lastHintAt = this.t;
       const seated = this.students.filter((x) => x.status === "seated");
       const cheaters = seated.filter((x) => isCheating(x));
       const early = this.s.room.level <= 5;
@@ -362,7 +364,7 @@ export class ExamScene {
 
   /** 반장 제보: 반장에게서 가장 먼 남은 부정행위자의 구역과 들은 것 */
   hearReport(): void {
-    this.repState = 2;
+    this.repState = 2; this.repHeard = true;
     const rep = this.students[this.repI];
     const left = this.students.filter((x) => isCheating(x));
     if (!left.length) return;
@@ -676,6 +678,7 @@ export class ExamScene {
 
     // 조준점에 걸린 학생
     this.target = this.pickTarget();
+    if (this.pre > 12 && this.s.period === 0 && (this.s.room.level === 10 || this.s.room.level === 16)) this.target = -1;   // 장비 시범 중엔 조준 라벨 숨김
 
     // 적발한 학생 패널은 놀란 표정을 잠깐 보여 준 뒤 닫음 (끝나는 중에도)
     if (this.panel >= 0 && this.students[this.panel].status !== "seated" && this.rt >= this.panelCloseAt) this.panel = -1;
@@ -711,7 +714,7 @@ export class ExamScene {
         this.panel = this.target;
         this.students[this.panel].observed = true;
         this.panelOpens++;
-        if (this.panel === this.repI && this.repState === 1) this.hearReport();
+        if (this.panel === this.repI && this.repState >= 1 && !this.repHeard) this.hearReport();
       } else this.toast("관찰할 학생을 화면 가운데에 두고 가까이 가세요", 2);
     }
     if (this.panel >= 0) {
@@ -805,7 +808,7 @@ export class ExamScene {
     if (idx < 0) { this.toast(this.touchMemo ? "학생을 화면 가운데에 두고 관찰 버튼을 먼저 누르세요" : "적발할 학생을 먼저 관찰(E)하세요", 2); return; }
     const st = this.students[idx];
     if (st.status !== "seated") return;   // 이미 나가는 중
-    if (st.i === this.repI && this.repState === 1) { this.toast("반장은 제보하러 손을 든 겁니다. E로 이야기를 들어 보세요", 2.5); return; }
+    if (st.i === this.repI && this.repState >= 1 && !this.repHeard) { this.toast("반장은 제보하러 손을 든 겁니다. E로 이야기를 들어 보세요", 2.5); return; }
     if (!st.observed) {
       if (this.touchMemo && this.dist(st) <= OBSERVE_RANGE) {
         this.panel = st.i; st.observed = true; this.panelOpens++;
@@ -1079,7 +1082,8 @@ export class ExamScene {
         g.fillRect(x1 - L, y1, L + 1, 1); g.fillRect(x1, y1 - L, 1, L + 1);
         const d = this.dist(st);
         const touch = this.touchMemo;
-        const txt = !st.observed ? (touch ? "관찰 버튼" : "[E] 관찰") : d <= ACCUSE_RANGE ? (touch ? "적발 버튼 · 관찰 버튼으로 닫기" : "[F] 적발  [E] 닫기") : (touch ? "적발 버튼: 옆으로 다가가기" : "[F] 옆으로 다가가기");
+        const repWaits = st.i === this.repI && this.repState >= 1 && !this.repHeard;
+        const txt = repWaits ? (touch ? "관찰 버튼: 반장 제보 듣기" : "[E] 반장 제보 듣기") : !st.observed ? (touch ? "관찰 버튼" : "[E] 관찰") : d <= ACCUSE_RANGE ? (touch ? "적발 버튼 · 관찰 버튼으로 닫기" : "[F] 적발  [E] 닫기") : (touch ? "적발 버튼: 옆으로 다가가기" : "[F] 옆으로 다가가기");
         g.font = KR(12);
         const lw = Math.ceil(g.measureText(`${st.seat}번 ${txt}`).width) + 8;
         const ly = this.panel >= 0 ? 42 : Math.min(H - 20, y1 + 4);   // 패널이 열려 있으면 위쪽에

@@ -118,7 +118,7 @@ export class ResultScene {
     }
     sv.alumni = sv.alumni.slice(-30);
     sv.usedEver = [...new Set([...(sv.usedEver ?? []), ...s.used])];
-    if (s.goal) sv.lastGoal = s.goal.id;
+    if (s.goal) { sv.lastGoal = s.goal.id; sv.lastGoals = [...(sv.lastGoals ?? []), s.goal.id].slice(-2); }
     // 교무실 책상 꾸미기용 누적 기록 (판정과 무관)
     const st = (sv.stats ??= { caught: 0, perfect: 0, stars: 0, s: 0, postcard: false });
     st.caught += this.data.caughtExam.length + this.data.caughtGate.length;

@@ -95,12 +95,12 @@ export function drawRoom(g: Ctx, cam: Camera, look?: RoomLook, rainT = -1): void
   // 왼쪽 창문
   for (const z0 of [1.5, 5.5, 9.5]) {
     quad(g, cam, onLeft(z0 - 0.08, z0 + 3.08, 0.92, 2.48), "#e6e2d6");
-    quad(g, cam, onLeft(z0, z0 + 3, 1.0, 2.4, 0.02), "#8fbfd4");
+    quad(g, cam, onLeft(z0, z0 + 3, 1.0, 2.4, 0.02), rainT >= 0 ? "#6f8899" : "#8fbfd4");   // 비 오는 날은 창밖이 회색빛
     quad(g, cam, onLeft(z0 + 1.47, z0 + 1.53, 1.0, 2.4, 0.03), "#e6e2d6");
     quad(g, cam, onLeft(z0 + 0.2, z0 + 0.9, 2.1, 2.2, 0.03), "#d6f0fa");
     if (rainT >= 0) for (let k = 0; k < 7; k++) {   // 비 오는 날: 창문을 타고 내리는 빗줄기
       const z = z0 + 0.2 + ((k * 0.41) % 2.7), y = 2.3 - ((rainT * 0.9 + k * 0.37) % 1.2);
-      quad(g, cam, onLeft(z, z + 0.025, y - 0.22, y, 0.035), "#cfe3ee");
+      quad(g, cam, onLeft(z, z + 0.04, y - 0.3, y, 0.035), "#cfe3ee");
     }
   }
   // 뒷벽: 게시판, 시계, 사물함, 스피커
