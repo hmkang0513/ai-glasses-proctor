@@ -370,6 +370,7 @@ export class ExamScene {
     };
     const text = say[far.cheat!.family] ?? `${zone}이 좀 어수선해요.`;
     this.toast(`반장(작은 목소리): ${text}`, 6, COLORS.accent);
+    this.notice = { seat: rep.seat, text: `반장: ${text}`, until: this.rt + 6, color: COLORS.accent, isNew: false };
     this.s.room.notes.unshift(`반장 제보: ${text}`);
     if (!this.s.used.includes("report")) this.s.used.push("report");
     rep.habitPose = null; rep.pose = "write";
@@ -812,7 +813,9 @@ export class ExamScene {
     else this.panel = -1;
     if (correct) {
       this.caughtThisPeriod++;
-      this.hitstopUntil = this.rt + 0.15;
+      const firstEver = (this.s.save.stats?.caught ?? 0) === 0 && this.s.catches.filter((c) => c.correct).length === 1 && this.s.gateEjected.length === 0;
+      this.hitstopUntil = this.rt + (firstEver ? 0.4 : 0.15);
+      if (firstEver) this.toast("첫 적발! 침착했어요 — 수석감독관", 3.5, COLORS.accent);
       play("tap", 0, 1, false);
       this.flies.push({ t0: this.rt, family: st.cheat?.family ?? "note" });
       this.toast(`${st.seat}번 학생 · 기기 압수, 조용히 퇴실`, 3);

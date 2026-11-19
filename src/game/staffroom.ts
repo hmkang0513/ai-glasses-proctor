@@ -102,6 +102,7 @@ export class StaffroomScene {
     if (has("mug2")) { px(g, 248, 152, 14, 18, "#c0504d"); px(g, 262, 156, 4, 8, "#c0504d"); px(g, 248, 152, 14, 3, "#f4f2ea"); at.mug2 = [255, 148]; }
     if (has("nameplate2")) { px(g, 272, 160, 44, 10, "#2a2a4a"); px(g, 276, 162, 36, 2, "#e8c35a"); px(g, 276, 166, 36, 2, "#e8c35a"); at.nameplate2 = [294, 156]; }
     else if (has("nameplate")) { px(g, 272, 160, 44, 10, "#3a3a3a"); px(g, 276, 163, 36, 3, "#e8c35a"); at.nameplate = [294, 156]; }
+    if (has("nameplate") || has("nameplate2")) { g.font = KR(8); g.fillStyle = "#e8c35a"; g.fillText(has("nameplate2") ? "수석" : "베테랑", 278, 151); }
     if (has("books")) {
       const cs = ["#3a5a8a", "#8a3a3a", "#4a7a4a", "#c9a95a"];
       for (let k = 0; k < 6; k++) { const hh = 30 + (k % 3) * 3; px(g, 392 + k * 10, 168 - hh, 8, hh, cs[k % 4]); }

@@ -42,13 +42,22 @@ export function drawStudentBack(g: Ctx, s: Student, o: DrawOpts): void {
   const prof = o.profile && pose !== "glance" && hx === 0 ? Math.sign(o.profile) : 0;
   const down = pose === "flinch" ? 3 : HEAD_DOWN.has(pose) ? 2 : pose === "write" || pose === "burst" || pose === "stare" ? 1 : 0;
   const nod = pose === "nod" ? Math.floor(t * 4) % 2 : 0;
-  // 책상 (학생 너머로 보임)
-  px(g, CX - 14, Y - 3, 28, 7, "#c99a5e"); px(g, CX - 14, Y + 4, 28, 2, "#94703f");
-  px(g, CX - 13, Y + 6, 2, 11, "#5a4430"); px(g, CX + 11, Y + 6, 2, 11, "#5a4430");
+  if (prof) {
+    // 옆모습: 칠판 쪽에만 짧은 책상 + 앞다리 하나, 좁은 몸통 (기획 13라운드 ① 좌표)
+    const dx = prof > 0 ? CX + 3 : CX - 13;
+    px(g, dx, Y - 3, 10, 3, "#c99a5e"); px(g, dx, Y, 10, 2, "#94703f");
+    px(g, prof > 0 ? CX + 11 : CX - 13, Y + 2, 2, 15, "#5a4430");
+    px(g, prof > 0 ? CX + 5 : CX - 11, Y - 4, 6, 1, "#f4f2ea");                       // 시험지
+    px(g, CX - 4, Y - 9, 8, 12, sh);
+  } else {
+    // 책상 (학생 너머로 보임)
+    px(g, CX - 14, Y - 3, 28, 7, "#c99a5e"); px(g, CX - 14, Y + 4, 28, 2, "#94703f");
+    px(g, CX - 13, Y + 6, 2, 11, "#5a4430"); px(g, CX + 11, Y + 6, 2, 11, "#5a4430");
+    // 몸 (등)
+    px(g, CX - 7, Y - 9, 14, 12, sh);
+    px(g, CX - 1, Y - 9, 2, 1, "rgba(0,0,0,0.2)");
+  }
   if (pose === "paperup") px(g, CX - 6, Y - 14, 12, 4, "#f4f2ea");                 // 들어 올린 시험지 윗부분
-  // 몸 (등)
-  px(g, CX - 7, Y - 9, 14, 12, sh);
-  px(g, CX - 1, Y - 9, 2, 1, "rgba(0,0,0,0.2)");
   // 머리 (뒤통수)
   const hy = Y - 19 + down + nod;
   px(g, CX - 5 + hx, hy, 10, 10, s.hair);
@@ -67,12 +76,23 @@ export function drawStudentBack(g: Ctx, s: Student, o: DrawOpts): void {
   }
   // 안경다리 (옆에서 살짝)
   if (s.glasses) { g.fillStyle = s.glasses.color; g.fillRect(CX - 6 + hx, hy + 4, 1, 1); g.fillRect(CX + 5 + hx, hy + 4, 1, 1); }
-  // 의자 등받이 (몸 앞에 가림)
-  px(g, CX - 8, Y - 3, 16, 3, "#4b3a2c"); px(g, CX - 8, Y + 1, 16, 2, "#5a4636");
-  px(g, CX - 7, Y + 3, 2, 14, "#3a2a20"); px(g, CX + 5, Y + 3, 2, 14, "#3a2a20");
+  if (prof) {
+    // 옆모습 의자: 등 뒤 세로 기둥 하나 + 앉는 판 + 다리
+    px(g, prof > 0 ? CX - 7 : CX + 5, Y - 12, 2, 15, "#4b3a2c");
+    px(g, CX - 5, Y + 3, 10, 2, "#5a4636");
+    px(g, CX - 5, Y + 5, 2, 12, "#3a2a20"); px(g, CX + 3, Y + 5, 2, 12, "#3a2a20");
+  } else {
+    // 의자 등받이 (몸 앞에 가림)
+    px(g, CX - 8, Y - 3, 16, 3, "#4b3a2c"); px(g, CX - 8, Y + 1, 16, 2, "#5a4636");
+    px(g, CX - 7, Y + 3, 2, 14, "#3a2a20"); px(g, CX + 5, Y + 3, 2, 14, "#3a2a20");
+  }
   // 팔 (뒤에서 보이는 만큼)
   const shoulder = Y - 9;
-  switch (pose) {
+  const special = ["stretch", "handup", "temple", "neck", "ear", "nosepush", "cough", "paperup", "paperchest", "underdesk", "drink", "bottle", "palm"].includes(pose);
+  if (prof && !special) {
+    // 옆모습 필기: 책상 쪽으로 뻗은 팔 하나
+    px(g, prof > 0 ? CX + 2 : CX - 8, Y - 7, 6, 2, sh); px(g, prof > 0 ? CX + 7 : CX - 9, Y - 5, 2, 2, skin);
+  } else switch (pose) {
     case "stretch": case "handup": {
       const top = hy - 6, len = shoulder + 1 - top;
       if (pose === "stretch") { px(g, CX - 9, top, 2, len, sh); px(g, CX - 9, top - 2, 2, 2, skin); }
