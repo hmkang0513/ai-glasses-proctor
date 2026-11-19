@@ -169,7 +169,10 @@ export class ResultScene {
     // 증거물 카드: 도장 뒤 잠깐 있다가 앞면 → 누르면 뒷면 → 누르면 닫음
     if (this.evidence && this.cardState === 0 && this.t > 1.6) this.cardState = 1;
     if (this.cardState === 1 || this.cardState === 2) {
-      if ((inp.clicked || inp.hit("Enter") || inp.hit("Space")) && this.t > 1.9) this.cardState++;
+      const btn = inp.clicked ? this.btns.find((b) => inp.mouseX >= b.x && inp.mouseX <= b.x + b.w && inp.mouseY >= b.y && inp.mouseY <= b.y + b.h) : undefined;
+      if (btn && this.t > 1.9) { this.cardState = 3; btn.act(); return; }   // 버튼은 한 번에
+      if ((inp.clicked || inp.hit("Space")) && this.t > 1.9) this.cardState++;
+      if (inp.hit("Enter") && this.t > 1.9) { this.cardState = 3; this.btns[0].act(); }
       return;
     }
     if (inp.clicked && this.t > 0.8) {
@@ -350,7 +353,8 @@ export class ResultScene {
       const openEyes = (1.5 - st.i) / 1.3 + 6 / 1.3 * 10;   // 깜빡임이 아닌 순간으로 고정
       drawCloseup(oc, { ...st, status: "seated", pose: st.caughtPose ?? "write", ledOn: st.aiGen === 1 } as Student, openEyes, 0, 0, false);
       g.imageSmoothingEnabled = false;
-      g.drawImage(off, 0, 0, 96, 96, -60, -78, 120, 120);
+      const handShot = ["note", "phone", "watch"].includes(ch.family) || ch.id === "peek";   // 손·책상 쪽 수법은 손 칸을 찍음
+      g.drawImage(off, handShot ? 100 : 0, 0, 96, 96, -60, -78, 120, 120);
       g.font = KR(12); g.fillStyle = "#3a2a10"; g.fillText(`증거물 · ${ch.name}`, -60, 48);
       g.font = KR(10); g.fillStyle = "#7d776b"; g.fillText(`${this.s.room.school} ${st.seat}번 · ${this.s.room.level}번째 감독`, -60, 64);
     } else {
@@ -367,6 +371,6 @@ export class ResultScene {
     }
     g.restore();
     g.font = KR(11); g.fillStyle = "#e9e6da";
-    g.fillText(this.cardState === 1 ? "처음 밝혀낸 수법 · 누르면 뒷면" : "누르면 닫기", 240 - 70, 216);
+    g.fillText(this.cardState === 1 ? "처음 밝혀낸 수법 · 카드를 누르면 뒤집기" : "카드를 누르면 닫기", 240 - 80, 216);
   }
 }

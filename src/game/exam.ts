@@ -304,7 +304,7 @@ export class ExamScene {
     if (this.repI >= 0) {
       const rep = this.students[this.repI];
       const busy = this.outage() || this.listening() || this.collectT > 0 || this.pre > 0;
-      if (this.repState === 0 && this.t >= this.repAt && !busy && Math.abs(this.t - this.lastHintAt) > 10 && Math.abs(this.t - this.aideHintAt) > 10) {
+      if (this.repState === 0 && this.t >= this.repAt && !busy && Math.abs(this.t - this.lastHintAt) > 15 && (this.aideHintAt < 0 || Math.abs(this.t - this.aideHintAt) > 15)) {
         if (!this.students.some((x) => isCheating(x))) this.repState = 2;
         else { this.repState = 1; this.repUntil = this.t + 60; this.toast(`${rep.seat}번 반장이 조용히 손을 들었습니다 · 가까이 가서 E`, 3.5, COLORS.accent); }
       }
@@ -321,7 +321,8 @@ export class ExamScene {
       const cheaters = seated.filter((x) => isCheating(x));
       const early = this.s.room.level <= 5;
       const honest = !this.s.room.bribedAide && (early || this.s.r() < 0.7);   // 매수된 부감독은 일부러 엉뚱한 학생을 가리킴
-      const pool = cheaters.length && honest ? cheaters : seated.filter((x) => !isCheating(x));
+      const fresh = cheaters.filter((x) => !this.s.aideHintSeats.includes(x.seat));
+      const pool = cheaters.length && honest ? (fresh.length ? fresh : cheaters) : seated.filter((x) => !isCheating(x));
       if (pool.length) {
         const st = pool[Math.floor(this.s.r() * pool.length)];
         this.toast(`부감독이 헛기침을 하며 ${st.seat}번 쪽을 봅니다`, 4, COLORS.accent);
@@ -380,7 +381,6 @@ export class ExamScene {
       camera: `${zone}에서 딸깍 소리가 났어요.`, people: `${zone} 친구가 창밖을 자꾸 봐요.`,
     };
     const text = say[far.cheat!.family] ?? `${zone}이 좀 어수선해요.`;
-    this.toast(`반장(작은 목소리): ${text}`, 6, COLORS.accent);
     this.notice = { seat: rep.seat, text: `반장: ${text}`, until: this.rt + 6, color: COLORS.accent, isNew: false };
     this.s.room.notes.unshift(`반장 제보: ${text}`);
     if (!this.s.used.includes("report")) this.s.used.push("report");
