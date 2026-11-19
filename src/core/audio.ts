@@ -33,7 +33,7 @@ export function toggleMute(): boolean {
   return muted;
 }
 
-export type SoundKind = "buzz" | "cough" | "chair" | "click" | "whisper" | "page" | "tick" | "power" | "hum" | "tap" | "rain";
+export type SoundKind = "buzz" | "cough" | "chair" | "click" | "whisper" | "page" | "tick" | "power" | "hum" | "tap" | "rain" | "chime";
 
 /** pan: -1(왼쪽)~1(오른쪽), vol: 0~1 */
 /** muffled: 등 뒤에서 난 소리는 먹먹하게 (앞뒤 구분) */
@@ -74,6 +74,16 @@ export function play(kind: SoundKind, pan = 0, vol = 1, muffled = false): void {
         g.gain.exponentialRampToValueAtTime(0.0001, t + off + 0.15);
         o.connect(g).connect(out); o.start(t + off); o.stop(t + off + 0.16);
       }
+      break;
+    }
+    case "chime": {         // 학교 종: 네 음 차임 (교시 시작·종료령)
+      [659, 523, 587, 392].forEach((f0, k) => {
+        const o = ac.createOscillator(); const g = ac.createGain();
+        o.type = "sine"; o.frequency.value = f0;
+        const t0 = t + k * 0.5;
+        g.gain.setValueAtTime(0.0001, t0); g.gain.exponentialRampToValueAtTime(0.18 * vol, t0 + 0.02); g.gain.exponentialRampToValueAtTime(0.0001, t0 + 1.2);
+        o.connect(g).connect(out); o.start(t0); o.stop(t0 + 1.25);
+      });
       break;
     }
     case "rain": {          // 빗소리: 낮게 걸러진 잡음 (창가 쪽)

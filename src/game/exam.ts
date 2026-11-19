@@ -68,7 +68,8 @@ export class ExamScene {
   closeEnough = -1;
   confirmI = -1; confirmUntil = 0;
   stuckT = 0; stuckToastAt = 0;
-  bangTold = false;         // 적발 확인 (F 두 번)
+  bangTold = false;
+  chimed = false;         // 적발 확인 (F 두 번)
   rainAt = 0;
   look: RoomLook | undefined;               // 학교별 교실 풍경 (21회차~)
   // 반장의 제보 (11회차~, 교시당 1번, 항상 맞는 정보)
@@ -494,6 +495,7 @@ export class ExamScene {
     if (this.ended) return;
     this.rt += dt;
     if (this.rt < this.hitstopUntil) return;   // 적발 순간 아주 잠깐 멈춤 (손맛)
+    if (!this.chimed && !this.memoOpen && this.pre <= 0) { this.chimed = true; play("chime", 0, 1, false); }   // 교시 시작 종
     if (this.s.goal && !this.goalToasted && this.s.goal.id !== "calm" && goalDone(this.s)) { this.goalToasted = true; this.toast(`★ 작은 목표 달성! ${this.s.goal.text}`, 3, COLORS.accent); play("page", 0, 1, false); }
     this.touchMemo = inp.touchMode;
     // 휴대폰: 화면 버튼 등록 (명부를 보는 중이면 터치는 닫기용)
@@ -593,6 +595,7 @@ export class ExamScene {
         if (this.collectT <= 0) {
           this.collectT = 4; this.collectDone = true;   // 아무도 안 쓰면 짧게 연출만
           this.toast("종료령이 울렸습니다. 필기구를 내려놓으세요 · 답안지를 회수합니다", 3, COLORS.accent);
+          play("chime", 0, 1, false);
           if (this.s.r() < 0.35) {
             const seated = this.students.filter((x) => x.status === "seated");
             const pool = seated.filter((x) => x.cheat).length && this.s.r() < 0.6 ? seated.filter((x) => x.cheat) : seated;
