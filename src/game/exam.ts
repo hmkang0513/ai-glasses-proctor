@@ -69,7 +69,8 @@ export class ExamScene {
   confirmI = -1; confirmUntil = 0;
   stuckT = 0; stuckToastAt = 0;
   bangTold = false;
-  mapPage = false;                         // Q로 연 명부에는 2쪽에 교실 미니 지도
+  mapPage = false;
+  hitRects: Array<{ i: number; x: number; y: number; w: number; h: number }> = [];   // 화면 속 학생 위치 (휴대폰 톡)                         // Q로 연 명부에는 2쪽에 교실 미니 지도
   chimed = false;         // 적발 확인 (F 두 번)
   rainAt = 0;
   look: RoomLook | undefined;               // 학교별 교실 풍경 (21회차~)
@@ -643,7 +644,7 @@ export class ExamScene {
       if (mx || mz || st.status !== "seated") this.autoWalk = -1;   // 직접 움직이면 취소
       else if (reached || (stuck && this.dist(st) <= 3.0)) {
         // 도착: 멈춰서 관찰창을 선명하게 보여 줌. 적발은 직접 한 번 더 (엉뚱한 학생을 바로 잡지 않게)
-        this.autoWalk = -1; this.panel = st.i; this.closeEnough = st.i; this.confirmI = st.i; this.confirmUntil = this.rt + 8;
+        this.autoWalk = -1; this.panel = st.i; this.closeEnough = st.i; st.observed = true; this.confirmI = st.i; this.confirmUntil = this.rt + 8;
         this.cam.yaw = Math.atan2(st.x - this.cam.x, st.z - this.cam.z);
         this.toast(`${st.seat}번 옆에 왔습니다. 확인하고 ${this.touchMemo ? "적발 버튼" : "F"}를 한 번 더`, 2.5);
       }
@@ -681,6 +682,18 @@ export class ExamScene {
     this.target = this.pickTarget();
     if (this.pre > 12 && this.s.period === 0 && (this.s.room.level === 10 || this.s.room.level === 16)) this.target = -1;   // 장비 시범 중엔 조준 라벨 숨김
 
+    // 휴대폰: 화면 속 학생을 톡 → 그쪽으로 고개를 돌리고 관찰 (멀면 옆으로 다가감)
+    if (inp.tap && this.mode === "fp" && this.touchMemo) {
+      const hit = [...this.hitRects].reverse().find((r) => inp.tap!.x >= r.x && inp.tap!.x <= r.x + r.w && inp.tap!.y >= r.y && inp.tap!.y <= r.y + r.h);
+      if (hit) {
+        const st = this.students[hit.i];
+        this.cam.yaw = Math.atan2(st.x - this.cam.x, st.z - this.cam.z);
+        if (this.dist(st) <= OBSERVE_RANGE) {
+          this.panel = st.i; st.observed = true; this.panelOpens++;
+          if (st.i === this.repI && this.repState >= 1 && !this.repHeard) this.hearReport();
+        } else { this.autoWalk = st.i; this.autoWalkUntil = this.rt + 4; this.toast(`${st.seat}번 쪽으로 다가갑니다`, 1.5); }
+      }
+    }
     // 적발한 학생 패널은 놀란 표정을 잠깐 보여 준 뒤 닫음 (끝나는 중에도)
     if (this.panel >= 0 && this.students[this.panel].status !== "seated" && this.rt >= this.panelCloseAt) this.panel = -1;
     if (this.endAt > 0) return;   // 끝나는 중에는 관찰·적발 불가
@@ -977,7 +990,8 @@ export class ExamScene {
       quad(bg, this.cam, [[0.03, 1.9 + bob, z - 0.14], [0.03, 1.9 + bob, z + 0.14], [0.03, 2.22 + bob, z + 0.14], [0.03, 2.22 + bob, z - 0.14]], "#2e3138");
     }
     const lights: PointLight[] = [];
-    const bangs: Array<[number, number]> = [];   // 초반 회차: 방금 부정행위를 시작한 학생 머리 위 "!"
+    const bangs: Array<[number, number]> = [];
+    this.hitRects = [];   // 초반 회차: 방금 부정행위를 시작한 학생 머리 위 "!"
     type Item = { st: Student; wx: number; wz: number; kind: "seat" | "walk" | "aide" };
     const items: Item[] = [{ st: this.students[0], wx: this.aide.x, wz: this.aide.z, kind: "aide" }];
     for (const st of this.students) {
@@ -1024,6 +1038,7 @@ export class ExamScene {
       }
       if (left > W || left + w < 0) continue;
       bg.drawImage(sprC, left, top, w, h);
+      if (it.kind === "seat" && it.st.status === "seated") this.hitRects.push({ i: it.st.i, x: left, y: top, w, h });
       const sxk = w / SPR_W;
       for (const L of local) lights.push({ x: Math.round(left + (L.x + 0.5) * sxk), y: Math.round(top + (L.y + 0.5) * sc), r: Math.max(3, Math.round(11 * sc * 0.6)), c: [255, 70, 50], s: 0.95 });
       if (it.kind === "seat" && it.st.status === "seated" && this.bangFor(it.st)) bangs.push([fx, top + 5 * sc]);

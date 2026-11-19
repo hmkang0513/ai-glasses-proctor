@@ -15,6 +15,9 @@ export class Input {
   mouseX = -1;
   mouseY = -1;
   clicked = false;
+  /** 휴대폰: 오른쪽(시선) 손가락을 거의 움직이지 않고 짧게 뗀 톡 */
+  tap: { x: number; y: number } | null = null;
+  private lookStart = { x: 0, y: 0, t: 0, moved: 0 };
   locked = false;
   /** 터치로 조작 중인지 (한 번이라도 터치하면 켜짐) */
   touchMode = false;
@@ -75,7 +78,7 @@ export class Input {
           if (x < W * 0.45 && this.stickId < 0) {
             this.stickId = e.pointerId; this.stick = { ox: x, oy: y, x, y };
           } else if (this.lookId < 0) {
-            this.lookId = e.pointerId; this.lookX = x;
+            this.lookId = e.pointerId; this.lookX = x; this.lookStart = { x, y, t: performance.now(), moved: 0 };
           }
         }
       }
@@ -84,7 +87,11 @@ export class Input {
 
     const end = (e: PointerEvent) => {
       if (e.pointerId === this.stickId) { this.stickId = -1; this.stick = null; this.stickKeys.clear(); }
-      if (e.pointerId === this.lookId) this.lookId = -1;
+      if (e.pointerId === this.lookId) {
+        this.lookId = -1;
+        const [x, y] = this.toCanvas(e);
+        if (performance.now() - this.lookStart.t < 300 && Math.hypot(x - this.lookStart.x, y - this.lookStart.y) < 8) this.tap = { x: this.lookStart.x, y: this.lookStart.y };
+      }
     };
     window.addEventListener("pointerup", end);
     window.addEventListener("pointercancel", end);
@@ -147,5 +154,6 @@ export class Input {
     this.mouseDX = 0;
     this.mouseDY = 0;
     this.clicked = false;
+    this.tap = null;
   }
 }
