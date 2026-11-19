@@ -347,7 +347,8 @@ export class ResultScene {
     px(g, -68, -86, 140, 176, "#00000044"); px(g, -70, -88, 140, 176, "#fbfaf4");
     if (this.cardState === 1) {
       const [off, oc] = makeCanvas(200, 100);
-      drawCloseup(oc, { ...st, status: "seated", pose: st.caughtPose ?? "write" } as Student, this.t, 0, 0, false);
+      const openEyes = (1.5 - st.i) / 1.3 + 6 / 1.3 * 10;   // 깜빡임이 아닌 순간으로 고정
+      drawCloseup(oc, { ...st, status: "seated", pose: st.caughtPose ?? "write", ledOn: st.aiGen === 1 } as Student, openEyes, 0, 0, false);
       g.imageSmoothingEnabled = false;
       g.drawImage(off, 0, 0, 96, 96, -60, -78, 120, 120);
       g.font = KR(12); g.fillStyle = "#3a2a10"; g.fillText(`증거물 · ${ch.name}`, -60, 48);
@@ -359,10 +360,13 @@ export class ResultScene {
       wrapText(g, kind, 120).slice(0, 2).forEach((l, i) => g.fillText(l, -60, -58 + i * 12));
       g.font = KR(11); g.fillStyle = "#3a2a10";
       const first = ch.hint.split(/(?<=[.다])\s/)[0];
-      wrapText(g, first, 120).slice(0, 7).forEach((l, i) => g.fillText(l, -60, -26 + i * 14));
+      wrapText(g, first, 120).slice(0, 5).forEach((l, i) => g.fillText(l, -60, -26 + i * 14));
+      if (ch.url) { g.font = KR(8); g.fillStyle = "#7d776b"; wrapText(g, ch.url.replace(/^https?:\/\//, "").replace(/^www\./, "").slice(0, 26), 120).slice(0, 2).forEach((l, i) => g.fillText(l, -60, 50 + i * 10)); }
+      px(g, 20, 64, 46, 16, "#c0504d"); px(g, 22, 66, 42, 12, "#fbfaf4");
+      g.font = KR(9); g.fillStyle = "#c0504d"; g.fillText(`${this.s.room.level}번째`, 25, 68);   // 날짜 대신 회차 도장
     }
     g.restore();
     g.font = KR(11); g.fillStyle = "#e9e6da";
-    g.fillText(this.cardState === 1 ? "처음 밝혀낸 수법 · 누르면 뒷면" : "누르면 닫기", 240 - 70, H - 18);
+    g.fillText(this.cardState === 1 ? "처음 밝혀낸 수법 · 누르면 뒷면" : "누르면 닫기", 240 - 70, 216);
   }
 }

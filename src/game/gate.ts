@@ -52,7 +52,7 @@ export class GateScene {
     const must = all.filter((x) => x.cheat && (x.cheat.gate.tray?.length || x.cheat.gate.hidden || x.cheat.gate.photoMismatch || x.aiGen > 0)).map((x) => x.i);
     const rest = all.map((x) => x.i).filter((i) => !must.includes(i)).sort((a, b) => ((a * 37 + lv * 11) % 23) - ((b * 37 + lv * 11) % 23));
     this.order = [...must, ...rest].slice(0, Math.max(n, must.length)).sort((a, b) => a - b);
-    if (this.order.length < all.length) this.log.unshift(`나머지 ${all.length - this.order.length}명은 부감독이 검사했습니다`);
+    if (this.order.length < all.length) this.log.unshift(`나머지 ${all.length - this.order.length}명은 부감독이 검사합니다`);
     this.loadStudent();
   }
 
@@ -179,7 +179,8 @@ export class GateScene {
     if (inp.clicked) {
       for (let k = 0; k < this.items.length; k++) {
         const it = this.items[k];
-        if (inp.mouseX >= it.x - 3 && inp.mouseX <= it.x + it.w + 3 && inp.mouseY >= it.y - 3 && inp.mouseY <= it.y + it.h + 3) this.sel = k;
+        const padX = this.touch ? Math.max(3, (32 - it.w) / 2) : 3, padY = this.touch ? Math.max(3, (24 - it.h) / 2) : 3;
+        if (inp.mouseX >= it.x - padX && inp.mouseX <= it.x + it.w + padX && inp.mouseY >= it.y - padY && inp.mouseY <= it.y + it.h + padY) this.sel = k;
       }
       const bx = 308;
       const btn = (y: number) => inp.mouseX >= bx && inp.mouseX <= bx + 158 && inp.mouseY >= y && inp.mouseY <= y + 20;
@@ -334,7 +335,9 @@ export class GateScene {
     const sec = Math.floor((this.t / GATE_SECONDS) * 10);
     g.font = KR(12); g.fillStyle = COLORS.chalk;
     g.fillText(`08:${String(sec).padStart(2, "0")}  입실 마감 08:10  ${this.idx + 1}/${this.order.length}`, 308, 12);
-    const btns: Array<[string, string, string]> = [["1 · PASS 통과", COLORS.green, "pass"], ["2 · HOLD 고른 물건 보관", COLORS.alert, "hold"], ["3 · CHECK 몸 수색 (6초)", COLORS.accent, "check"]];
+    const btns: Array<[string, string, string]> = this.touch
+      ? [["통과", COLORS.green, "pass"], ["고른 물건 보관", COLORS.alert, "hold"], ["몸 수색 (6초)", COLORS.accent, "check"]]   // 휴대폰은 숫자 키 없이
+      : [["1 · PASS 통과", COLORS.green, "pass"], ["2 · HOLD 고른 물건 보관", COLORS.alert, "hold"], ["3 · CHECK 몸 수색 (6초)", COLORS.accent, "check"]];
     btns.forEach(([text, col], n) => {
       px(g, 308, 32 + n * 26, 158, 20, "#2b3732");
       g.font = KR(12); g.fillStyle = col; g.fillText(text, 314, 35 + n * 26);

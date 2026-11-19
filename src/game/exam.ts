@@ -1264,7 +1264,8 @@ export class ExamScene {
   private ui(text: string): string {
     if (!this.touchUi.length && !this.touchMemo) return text;
     return text
-      .replace("WASD로 걷고, 마우스로 고개를 돌립니다. 화면을 클릭하면 마우스가 고정됩니다.", "화면 왼쪽을 끌면 걷고, 오른쪽을 끌면 고개를 돌립니다.")
+      .replace("WASD로 걷고 마우스로 고개를 돌립니다. (화면을 클릭하면 마우스가 고정됩니다)", "화면 왼쪽을 끌면 걷고, 오른쪽을 끌면 고개를 돌립니다.")
+      .replace(/Z로/g, "표시 버튼으로").replace(/H로/g, "묻기 버튼으로").replace(/열화상\(T\)/g, "열화상 버튼").replace(/전파 탐지기\(R\)/g, "전파 버튼")
       .replace(/E로 관찰/g, "관찰 버튼으로 관찰").replace(/F로 적발/g, "적발 버튼으로 적발").replace(/관찰\(E\)/g, "관찰").replace(/ F로 /g, " 적발 버튼으로 ")
       .replace("Q를 누르면", "명부 버튼을 누르면").replace("Tab을 누르면", "CCTV 버튼을 누르면")
       .replace("클릭하거나 Space를 누르면", "화면을 누르면").replace(/\(Shift 까치발\)/g, "");
