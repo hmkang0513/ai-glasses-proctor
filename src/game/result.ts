@@ -245,13 +245,13 @@ export class ResultScene {
     }
     // 공개: 놓친 학생 / 오인
     let y = 145;
-    const BOTTOM = 196;            // "외 n명" 줄과 수석감독관 한마디(208~), 버튼(232) 위까지만
+    const BOTTOM = 215;            // "외 n명" 줄과 수석감독관 한마디(한 줄, 216), 버튼(232) 위까지만
     const box = (title: string, body: string, color: string, bg: string) => {
       g.font = KR(11);
       const room = Math.floor((BOTTOM - y - 18) / 13);
       if (room < 1) return false;  // 자리가 없으면 그리지 않음
       let lines = wrapText(g, body, 214);
-      const cap = Math.min(3, room);
+      const cap = Math.min(4, room);
       if (lines.length > cap) { lines = lines.slice(0, cap); lines[cap - 1] = lines[cap - 1].replace(/.{2}$/, "…"); }
       const hgt = 18 + lines.length * 13;
       px(g, sx, y, 226, hgt, bg); px(g, sx, y, 3, hgt, color);
@@ -269,7 +269,7 @@ export class ResultScene {
       const why = acts.length ? ` (행동 ${acts.length}번 중 가까이서 본 건 ${seen}번)` : "";
       if (box(`놓친 학생 · ${m.seat}번 · ${m.cheat!.name}`, (m.cheat!.hint + " " + why.trim() + (m.overtime ? " 종료령 뒤에도 썼습니다." : "")).trim(), "#9c2d23", "#f7e3df")) shown++;
     }
-    if (d.missed.length > shown) { g.font = KR(11); g.fillStyle = "#9c2d23"; g.fillText(`놓친 학생 외 ${d.missed.length - shown}명 더 (수첩에 기록됨)`, sx, Math.min(y + 2, 197)); }
+    if (d.missed.length > shown) { g.font = KR(11); g.fillStyle = "#9c2d23"; g.fillText(`놓친 학생 외 ${d.missed.length - shown}명 더 (수첩에 기록됨)`, sx, Math.min(y + 2, 207)); }
     for (const w of d.wrong.slice(0, Math.max(0, 2 - d.missed.length))) {
       const reason = (w.lastHabit && HABIT_NAME[w.lastHabit]) || w.habits.map((h) => HABIT_NAME[h]).filter(Boolean)[0] || "평범한 행동";
       const byHint = s.aideHintSeats.includes(w.seat);
@@ -291,11 +291,10 @@ export class ResultScene {
     if (!clean) {
       const [good, tip] = this.chief;
       g.fillStyle = COLORS.navy;
-      for (const [k, line] of [good, tip].filter(Boolean).entries()) {
-        const text = (k === 0 ? "수석감독관: " : "") + line;
-        for (let fs = 11; fs >= 8; fs--) { g.font = KR(fs); if (g.measureText(text).width <= 226) break; }
-        g.fillText(text, sx, 207 + k * 12);
-      }
+      // 한 줄: 아쉬운 점이 있으면 그것을, 없으면 칭찬을 (넘치면 글자를 줄임)
+      const text = "수석감독관: " + (tip || good);
+      for (let fs = 11; fs >= 8; fs--) { g.font = KR(fs); if (g.measureText(text).width <= 226) break; }
+      g.fillText(text, sx, 219);
     }
 
     // 처분·수첩

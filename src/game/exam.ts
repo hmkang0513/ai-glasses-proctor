@@ -67,7 +67,8 @@ export class ExamScene {
   autoWalk = -1; autoWalkUntil = 0;
   closeEnough = -1;
   confirmI = -1; confirmUntil = 0;
-  stuckT = 0; stuckToastAt = 0;         // 적발 확인 (F 두 번)
+  stuckT = 0; stuckToastAt = 0;
+  bangTold = false;         // 적발 확인 (F 두 번)
   rainAt = 0;
   look: RoomLook | undefined;               // 학교별 교실 풍경 (21회차~)
   // 반장의 제보 (11회차~, 교시당 1번, 항상 맞는 정보)
@@ -1047,6 +1048,7 @@ export class ExamScene {
       }
     }
     this.flies = this.flies.filter((f) => this.rt - f.t0 < 0.7);
+    if (bangs.length && !this.bangTold && this.s.room.level <= 3) { this.bangTold = true; this.toast("머리 위 \"!\" = 방금 수상한 행동을 시작한 학생 · 가까이 가서 E로 관찰", 4, COLORS.accent); }
     for (const [bx, by] of bangs) {
       const yy = Math.round(by - 16 - Math.abs(Math.sin(this.t * 8)) * 3);
       px(g, Math.round(bx) - 5, yy - 1, 10, 13, "#1a1414");   // 어두운 테두리 (배경에 묻히지 않게)

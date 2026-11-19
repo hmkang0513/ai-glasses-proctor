@@ -42,14 +42,22 @@ export class GateScene {
   log: string[] = [];
   done = false;
   helpOpen: boolean;
+  order: number[] = [];  // 내가 검사할 학생 (초반은 일부만, 나머지는 부감독이 검사)
 
   constructor(private s: Session, private onDone: () => void) {
     this.helpOpen = s.room.level <= 4;
+    // 2~3회차 6명, 4~5회차 10명, 6회차부터 20명. 입실 단서가 있는 학생은 꼭 포함
+    const lv = s.room.level, n = lv <= 3 ? 6 : lv <= 5 ? 10 : 20;
+    const all = s.room.students;
+    const must = all.filter((x) => x.cheat && (x.cheat.gate.tray?.length || x.cheat.gate.hidden || x.cheat.gate.photoMismatch || x.aiGen > 0)).map((x) => x.i);
+    const rest = all.map((x) => x.i).filter((i) => !must.includes(i)).sort((a, b) => ((a * 37 + lv * 11) % 23) - ((b * 37 + lv * 11) % 23));
+    this.order = [...must, ...rest].slice(0, Math.max(n, must.length)).sort((a, b) => a - b);
+    if (this.order.length < all.length) this.log.unshift(`나머지 ${all.length - this.order.length}명은 부감독이 검사했습니다`);
     this.loadStudent();
   }
 
   get st(): Student {
-    return this.s.room.students[this.idx];
+    return this.s.room.students[this.order[this.idx]];
   }
 
   private loadStudent(): void {
@@ -95,7 +103,7 @@ export class GateScene {
 
   private next(): void {
     this.idx++;
-    if (this.idx >= this.s.room.students.length) this.finish();
+    if (this.idx >= this.order.length) this.finish();
     else this.loadStudent();
   }
 
@@ -182,7 +190,7 @@ export class GateScene {
     if (inp.hit("Digit1")) this.act("pass");
     if (inp.hit("Digit2")) this.act("hold");
     if (inp.hit("Digit3")) this.act("check");
-    if (inp.hit("Digit4")) { this.log.unshift(`${this.idx + 1}번부터 남은 학생은 모두 통과`); this.finish(); }
+    if (inp.hit("Digit4")) { this.log.unshift(`${this.st.seat}번부터 남은 학생은 모두 통과`); this.finish(); }
     if (inp.hit("ArrowRight") || inp.hit("KeyD")) this.sel = (this.sel + 1) % this.items.length;
     if (inp.hit("ArrowLeft") || inp.hit("KeyA")) this.sel = (this.sel + this.items.length - 1) % this.items.length;
   }
@@ -285,7 +293,7 @@ export class GateScene {
     // 벽과 문
     px(g, 0, 0, W, 118, "#c3bdab");
     px(g, 14, 8, 96, 110, "#6b4d33"); px(g, 20, 14, 84, 104, "#2e3138");
-    const waiting = Math.min(3, this.s.room.students.length - this.idx - 1);
+    const waiting = Math.min(3, this.order.length - this.idx - 1);
     for (let n = 0; n < waiting; n++) {
       const qx = 34 + n * 22, qy = 58 + n * 4;
       px(g, qx, qy, 12, 12, "#46403a"); px(g, qx - 3, qy + 12, 18, 40, "#3b4660");
@@ -325,7 +333,7 @@ export class GateScene {
     px(g, 300, 6, 174, 104, "rgba(16,22,20,0.92)");
     const sec = Math.floor((this.t / GATE_SECONDS) * 10);
     g.font = KR(12); g.fillStyle = COLORS.chalk;
-    g.fillText(`08:${String(sec).padStart(2, "0")}  입실 마감 08:10  ${this.idx + 1}/20`, 308, 12);
+    g.fillText(`08:${String(sec).padStart(2, "0")}  입실 마감 08:10  ${this.idx + 1}/${this.order.length}`, 308, 12);
     const btns: Array<[string, string, string]> = [["1 · PASS 통과", COLORS.green, "pass"], ["2 · HOLD 고른 물건 보관", COLORS.alert, "hold"], ["3 · CHECK 몸 수색 (6초)", COLORS.accent, "check"]];
     btns.forEach(([text, col], n) => {
       px(g, 308, 32 + n * 26, 158, 20, "#2b3732");
