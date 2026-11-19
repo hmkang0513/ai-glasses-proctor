@@ -69,6 +69,7 @@ export class ExamScene {
   confirmI = -1; confirmUntil = 0;
   stuckT = 0; stuckToastAt = 0;
   bangTold = false;
+  mapPage = false;                         // Q로 연 명부에는 2쪽에 교실 미니 지도
   chimed = false;         // 적발 확인 (F 두 번)
   rainAt = 0;
   look: RoomLook | undefined;               // 학교별 교실 풍경 (21회차~)
@@ -510,12 +511,12 @@ export class ExamScene {
     if (inp.hit("KeyC")) { this.captionsOn = !this.captionsOn; this.toast(this.captionsOn ? "소리 자막 켬" : "소리 자막 끔", 1.5); }
     if (inp.hit("KeyQ")) {
       this.memoOpen = !this.memoOpen;
-      if (this.memoOpen) { this.memoPages = this.notebookPages(); this.memoPage = 0; }
+      if (this.memoOpen) { this.memoPages = this.notebookPages(); this.memoPage = 0; this.mapPage = true; }
       inp.releaseLock();
     }
     if (this.memoOpen) {
       // ←/→ 로 감독관 수첩 쪽 넘기기
-      const pages = 1 + this.s.save.notebook.length;
+      const pages = 1 + (this.mapPage ? 1 : 0) + this.s.save.notebook.length;
       if (inp.hit("ArrowRight") || inp.hit("KeyD")) this.memoPage = Math.min(pages - 1, this.memoPage + 1);
       if (inp.hit("ArrowLeft") || inp.hit("KeyA")) this.memoPage = Math.max(0, this.memoPage - 1);
       if (inp.clicked || inp.hit("Space") || inp.hit("Enter")) { this.memoOpen = false; if (this.mode === "fp") inp.requestLock(); }
@@ -1272,6 +1273,37 @@ export class ExamScene {
   }
   touchMemo = false;
 
+  /** 명부 2쪽: 교실 미니 지도 (관찰 ✓·Z 표시·반장·입실 보관·퇴실·오인·내 위치). 부정행위자 위치는 표시하지 않음 */
+  private drawMiniMap(g: Ctx, x: number, y: number, w: number, h: number): void {
+    g.font = KR(16); g.fillStyle = COLORS.navy; g.fillText("교실 지도", x + 14, y + 12);
+    const ox = 118, oy = 70, cw = 44, ch = 28, gap = 6;
+    px(g, ox, oy - 12, 5 * cw + 4 * gap, 8, "#3a2e26"); g.font = PIX(8); g.fillStyle = "#f4f2ea"; g.fillText("FRONT", ox + 100, oy - 12);
+    for (const st of this.students) {
+      const c = st.i % 5, r = Math.floor(st.i / 5), cx = ox + c * (cw + gap), cy = oy + r * (ch + gap);
+      const held = st.confiscated || this.s.gateHeld.includes(st.seat);
+      const bg = st.outcome === "caught" || this.s.gateEjected.includes(st.seat) ? "#f0b54a" : held ? "#8fb0d8" : "#e2ddd0";
+      px(g, cx, cy, cw, ch, bg);
+      if (st.outcome === "wrong") for (let k = 0; k < cw; k += 5) px(g, cx + k, cy + ch - 3, 3, 3, "#7d776b");   // 오인 빗금
+      g.font = PIX(8); g.fillStyle = "#5a554b"; g.fillText(String(st.seat).padStart(2, "0"), cx + 3, cy + 3);
+      if (st.observed) { g.font = KR(12); g.fillStyle = "#2f6b3a"; g.fillText("✓", cx + cw - 12, cy + 2); }
+      if (this.marks.has(st.i)) px(g, cx + cw - 9, cy + ch - 9, 6, 6, "#e07a1f");
+      if (st.i === this.repI) { g.font = KR(11); g.fillStyle = "#b8860b"; g.fillText("★반장", cx + 3, cy + 14); }
+    }
+    // 부감독 담당(뒤쪽 두 줄) 점선 테두리
+    const by = oy + 2 * (ch + gap) - 3, bw = 5 * cw + 4 * gap + 6, bh = 2 * ch + gap + 6;
+    for (let k = 0; k < bw; k += 6) { px(g, ox - 3 + k, by, 3, 1, "#7d776b"); px(g, ox - 3 + k, by + bh, 3, 1, "#7d776b"); }
+    g.font = KR(10); g.fillStyle = "#7d776b"; g.fillText("부감독 담당", ox + 5 * cw + 4 * gap + 4, by + 2);
+    // 내 위치 (남색 삼각형)
+    const mx = ox + ((this.cam.x - COLX[0]) / (COLX[4] - COLX[0])) * 4 * (cw + gap) + cw / 2;
+    const my = oy + ((this.cam.z - ROWZ[0]) / (ROWZ[3] - ROWZ[0])) * 3 * (ch + gap) + ch / 2;
+    const tx = Math.max(x + 8, Math.min(x + w - 8, mx)), ty = Math.max(oy - 20, Math.min(y + h - 40, my));
+    px(g, tx - 1, ty - 4, 3, 2, COLORS.navy); px(g, tx - 3, ty - 2, 7, 2, COLORS.navy); px(g, tx - 4, ty, 9, 2, COLORS.navy);
+    g.font = KR(10); g.fillStyle = "#5a554b";
+    g.fillText("✓ 관찰함 · 주황 점 Z 표시 · 주황 칸 퇴실 · 파랑 칸 입실 보관 · ▲ 나", x + 14, y + h - 40);
+    g.font = KR(12); g.fillStyle = "#7d776b";
+    g.fillText(this.ui("클릭하거나 Space를 누르면 감독으로 돌아갑니다"), x + 14, y + h - 22);
+  }
+
   private renderMemo(g: Ctx): void {
     px(g, 0, 0, W, H, "rgba(0,0,0,0.55)");
     const x = 70, y = 20, w = 340, h = 230;
@@ -1280,13 +1312,15 @@ export class ExamScene {
     px(g, x + w / 2 - 20, y - 10, 40, 10, "#9aa0a8");
     g.textBaseline = "top";
     const nbIds = [...this.s.save.notebook].sort((a, b) => CHEAT_BY_ID[a].no - CHEAT_BY_ID[b].no);
-    const pages = 1 + nbIds.length;
+    const mapOn = this.mapPage;
+    const pages = 1 + (mapOn ? 1 : 0) + nbIds.length;
     g.font = KR(11); g.fillStyle = "#7d776b";
     const pageText = `${this.memoPage + 1} / ${pages}${pages > 1 ? "  ←/→ 넘기기" : ""}`;
     g.fillText(pageText, x + w - 14 - g.measureText(pageText).width, y + 14);
+    if (mapOn && this.memoPage === 1) { this.drawMiniMap(g, x, y, w, h); return; }
     if (this.memoPage > 0) {
       // 감독관 수첩: 손글씨 메모 한 쪽
-      const c = CHEAT_BY_ID[nbIds[this.memoPage - 1]];
+      const c = CHEAT_BY_ID[nbIds[this.memoPage - 1 - (mapOn ? 1 : 0)]];
       for (let k = 0; k < 9; k++) px(g, x + 10, y + 44 + k * 18, w - 20, 1, "#d8d2c2");
       px(g, x + 34, y + 36, 1, h - 50, "#e3a49a");
       g.font = KR(16); g.fillStyle = COLORS.navy;
