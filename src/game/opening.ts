@@ -40,13 +40,19 @@ export class OpeningScene {
       px(g, 200, 14, 80, 22, "#f4f2ea"); g.font = KR(13); g.fillStyle = COLORS.navy; g.fillText(`제${this.s.room.roomNo}시험실`, 210, 18);
     } else {
       // 명부 받기: 수석감독관이 명부를 건넴 (가운데 → 오른쪽 아래 명부 자리)
+      // 교실 앞(칠판·교탁)에서 수석감독관이 명부를 건넴
       px(g, 0, 0, W, H, "#b9b3a1"); px(g, 0, 170, W, 100, "#86684a");
+      px(g, 110, 40, 260, 90, "#5a4636"); px(g, 116, 46, 248, 78, "#2f4a3a"); px(g, 140, 70, 90, 3, "#d9d6c8"); px(g, 140, 84, 120, 3, "#d9d6c8");
+      px(g, 190, 140, 100, 40, "#6b4d33"); px(g, 186, 136, 108, 6, "#8a6644");
       const e = Math.min(1, u / 0.7);
       const x = 200 + (W - 96 - 200) * e, y = 80 + (H - 66 - 80) * e;
-      px(g, x - 30, y + 30, 40, 14, "#39435a");                   // 건네는 팔
+      px(g, x - 70, y + 26, 80, 22, "#39435a"); px(g, x - 44, y + 26, 14, 22, "#e8c35a");   // 건네는 팔 + 노란 완장
+      px(g, x - 4, y + 30, 10, 12, "#e0b48e");                                                // 손
       px(g, x, y, 62, 80, "#5a3f28"); px(g, x + 4, y + 6, 54, 74, "#f4f2ea");
       for (let i = 0; i < 6; i++) px(g, x + 10, y + 16 + i * 8, 34, 2, "#aab");
-      g.font = KR(14); g.fillStyle = COLORS.ink; g.fillText("오늘 이 교실은 선생님 담당입니다.", 40, 40);
+      px(g, 30, 196, 300, 40, "#fffdf6");
+      g.font = KR(14); g.fillStyle = COLORS.ink; g.fillText("오늘 이 교실은 선생님 담당입니다.", 40, 202);
+      g.font = KR(11); g.fillStyle = "#7d776b"; g.fillText("— 수석감독관", 240, 220);
     }
     g.font = KR(10); g.fillStyle = "#3a3a3a"; g.fillText("누르면 건너뛰기", W - 90, 6);
   }

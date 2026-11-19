@@ -133,7 +133,7 @@ export class ResultScene {
       : this.data.pass
       ? [{ x: 236, y: 232, w: 108, h: 24, text: "다음 감독 ▶", act: actions.next }, { x: 352, y: 232, w: 108, h: 24, text: "처음 화면", act: actions.title }]
       : [{ x: 236, y: 232, w: 108, h: 24, text: "다시 감독하기", act: actions.retry }, { x: 352, y: 232, w: 108, h: 24, text: "처음 화면", act: actions.title }];
-    if (!s.daily) this.btns.push(card);
+    if (!s.daily && s.room.level > 5) this.btns.push(card);   // 1~5회차는 화면을 단순하게
   }
 
   /** 결과 카드 PNG (개인 정보 없음) */
@@ -313,7 +313,7 @@ export class ResultScene {
     g.fillStyle = "#7d776b";
     const rule = "처분: 당해 시험 무효 · 중대 행위는 다음 해 응시 정지";
     for (let fs = 11; fs >= 8; fs--) { g.font = KR(fs); if (g.measureText(rule).width <= 205) break; }
-    g.fillText(rule, 22, 219);
+    if (s.room.level > 5) g.fillText(rule, 22, 219);
     if (d.newNotes.length) {
       if (Math.floor(this.t * 2) % 2) { px(g, 22, 233, 30, 13, COLORS.accent); g.font = PIX(8); g.fillStyle = COLORS.bg; g.fillText("NEW", 26, 236); }
       g.font = KR(12); g.fillStyle = COLORS.ink;

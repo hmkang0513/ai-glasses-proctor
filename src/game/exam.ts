@@ -179,7 +179,8 @@ export class ExamScene {
 
   /** 휴대폰 화면 버튼 (오른쪽 아래 두 줄) */
   private buildTouchUi(): TouchButton[] {
-    const list: Array<[string, string]> = [["KeyE", "관찰"], ["KeyF", "적발"], ["KeyZ", "표시"], ["KeyT", "열화상"]];
+    const list: Array<[string, string]> = [["KeyE", "관찰"], ["KeyF", "적발"], ["KeyZ", "표시"]];
+    if (this.s.room.level >= 10) list.push(["KeyT", "열화상"]);   // 열화상은 10회차부터 (그 전엔 화면을 단순하게)
     if (this.askLeft > 0) list.push(["KeyH", "묻기"]);
     if (this.s.room.level >= 16) list.push(["KeyR", "전파"]);
     list.push(["Tab", this.mode === "cctv" ? "교실" : "CCTV"], ["KeyQ", "명부"]);
@@ -736,7 +737,7 @@ export class ExamScene {
       if ((st.status !== "seated" && this.rt >= this.panelCloseAt) || (st.status === "seated" && this.dist(st) > OBSERVE_RANGE + 0.3)) this.panel = -1;
     }
     // T: 열화상
-    if (inp.hit("KeyT")) {
+    if (inp.hit("KeyT") && this.s.room.level >= 10) {
       if (this.pre > 0) this.toast("시계 확인 시간에는 열화상을 쓰지 않습니다", 2);
       else if (this.panel < 0) this.toast("열화상은 관찰(E) 중에만 쓸 수 있습니다", 2);
       else if (this.thermalCharges <= 0) this.toast("이번 교시 열화상 횟수를 다 썼습니다", 2);
@@ -1102,8 +1103,8 @@ export class ExamScene {
         const txt = repWaits ? (touch ? "관찰 버튼: 반장 제보 듣기" : "[E] 반장 제보 듣기") : !st.observed ? (touch ? "관찰 버튼" : "[E] 관찰") : d <= ACCUSE_RANGE ? (touch ? "적발 버튼 · 관찰 버튼으로 닫기" : "[F] 적발  [E] 닫기") : (touch ? "적발 버튼: 옆으로 다가가기" : "[F] 옆으로 다가가기");
         g.font = KR(12);
         const lw = Math.ceil(g.measureText(`${st.seat}번 ${txt}`).width) + 8;
-        const ly = this.panel >= 0 ? 42 : Math.min(H - 20, y1 + 4);   // 패널이 열려 있으면 위쪽에
-        label(g, `${st.seat}번 ${txt}`, Math.max(4, Math.min(W - lw - 4, Math.round(fx - lw / 2))), ly, { font: KR(12), color: COLORS.accent });
+        if (this.panel >= 0) label(g, txt, 210, 250, { font: KR(11), color: COLORS.accent });   // 패널 옆에 (위쪽 알림과 겹치지 않게)
+        else label(g, `${st.seat}번 ${txt}`, Math.max(4, Math.min(W - lw - 4, Math.round(fx - lw / 2))), Math.min(H - 20, y1 + 4), { font: KR(12), color: COLORS.accent });
       }
     }
     if (this.panel >= 0) {
@@ -1141,8 +1142,8 @@ export class ExamScene {
       }
       if (this.t < this.radioUntil) this.drawRadio(g, st);
       const k = (key: string, name: string) => (this.touchMemo ? name : `${key} ${name}`);
-      label(g, `명부: ${this.introFor(st)}`, 210, 252, { font: KR(10), color: "#9aa69f" });   // 학생 한 줄 소개 (명부 메모)
-      label(g, `${st.seat}번 ${this.cam.z > st.z + 0.15 ? "어깨 너머 " : ""}관찰 중 · ${k("T", "열화상")} ${this.thermalCharges}회${this.s.room.level >= 16 ? ` · ${k("R", "전파")} ${this.radioCharges}회` : ""}`, 8, 150, { font: KR(12), bg: "none", color: COLORS.chalk });
+      const tools = (this.s.room.level >= 10 ? ` · ${k("T", "열화상")} ${this.thermalCharges}` : "") + (this.s.room.level >= 16 ? ` · ${k("R", "전파")} ${this.radioCharges}` : "");
+      label(g, `${st.seat}번${this.cam.z > st.z + 0.15 ? "(어깨 너머)" : ""} · ${this.introFor(st)}${tools}`, 8, 150, { font: KR(12), bg: "none", color: COLORS.chalk });   // 머리줄 하나로
     }
   }
 
@@ -1223,8 +1224,7 @@ export class ExamScene {
     const caught = this.s.catches.filter((c) => c.correct).length + this.s.gateEjected.length;
     if (this.s.room.level <= 3) {   // 초반은 남은 인원을 알려 줌
       const left = this.students.filter((o) => isCheating(o)).length;
-      label(g, `CAUGHT ${caught}`, 6, 32, { font: PIX(8) });
-      label(g, left ? `남은 부정행위자 ${left}명` : "남은 부정행위자 없음", 6, 44, { font: KR(11), color: COLORS.accent });
+      label(g, left ? `남은 부정행위자 ${left}명` : "남은 부정행위자 없음", 6, 32, { font: KR(11), color: COLORS.accent });
     } else label(g, `CAUGHT ${caught}/?`, 6, 32, { font: PIX(8) });
     // 민원 게이지 3칸
     label(g, "민원", W - 92, 6, { font: KR(12) });
@@ -1239,7 +1239,7 @@ export class ExamScene {
     this.renderOutage(g);
     // 토스트
     this.toasts = this.toasts.filter((x) => x.until > this.rt);
-    this.toasts.slice(-3).forEach((x, n) => {
+    this.toasts.slice(-2).forEach((x, n) => {
       g.font = KR(12);
       const w = Math.ceil(g.measureText(x.text).width) + 12;
       label(g, x.text, Math.round(W / 2 - w / 2), 46 + n * 20, { font: KR(12), color: x.color ?? COLORS.chalk });
@@ -1332,8 +1332,8 @@ export class ExamScene {
     g.font = KR(11); g.fillStyle = "#7d776b";
     const pageText = `${this.memoPage + 1} / ${pages}${pages > 1 ? "  ←/→ 넘기기" : ""}`;
     g.fillText(pageText, x + w - 14 - g.measureText(pageText).width, y + 14);
-    if (mapOn && this.memoPage === 1) { this.drawMiniMap(g, x, y, w, h); return; }
-    if (this.memoPage > 0) {
+    if (mapOn && this.memoPage === 0) { this.drawMiniMap(g, x, y, w, h); return; }
+    if (this.memoPage > (mapOn ? 1 : 0)) {
       // 감독관 수첩: 손글씨 메모 한 쪽
       const c = CHEAT_BY_ID[nbIds[this.memoPage - 1 - (mapOn ? 1 : 0)]];
       for (let k = 0; k < 9; k++) px(g, x + 10, y + 44 + k * 18, w - 20, 1, "#d8d2c2");

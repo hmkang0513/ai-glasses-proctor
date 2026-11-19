@@ -66,7 +66,7 @@ export function pickGoal(level: number, seed: number, usedEver: string[] = [], l
   if (level < 3) return null;
   const list: Array<[string, string, number]> = [
     ["back", "뒤쪽 줄까지 한 바퀴 돌기", 3], ["calm", "민원 없이 끝내기", 3], ["mark", "Z로 의심 표시 해 보기", 3],
-    ["cctv", "Tab으로 CCTV 화면 한 번 보기", 3], ["thermal", "열화상(T) 한 번 써 보기", 6], ["tiptoe", "Shift 까치발로 걸어 보기", 5],
+    ["cctv", "Tab으로 CCTV 화면 한 번 보기", 3], ["thermal", "열화상(T) 한 번 써 보기", 10], ["tiptoe", "Shift 까치발로 걸어 보기", 5],
     ["ask", "H로 부감독에게 물어보기", 3], ["radio", "전파 탐지기(R) 써 보기", 16], ["report", "반장 제보 들어 보기", 11],
   ];
   let ok = list.filter((g) => level >= g[2] && g[0] !== last && !recent.includes(g[0]));   // 직전 2판과 다르게
