@@ -840,6 +840,7 @@ export class ExamScene {
     st.leaveT = 0;
     st.outcome = correct ? "caught" : "wrong";
     st.caughtAt = this.t;
+    st.caughtPose = st.acting ? st.pose : (st.cheat?.loop[0]?.pose ?? st.pose);
     this.s.catches.push({ seat: st.seat, period: this.s.period, t: this.t, correct });
     if (correct && this.mode === "fp") { this.panel = st.i; this.panelCloseAt = this.rt + 0.6; }   // 들킨 표정을 잠깐
     else this.panel = -1;

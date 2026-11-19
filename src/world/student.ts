@@ -52,6 +52,7 @@ export interface Student {
   status: "seated" | "leaving" | "gone";
   outcome: "none" | "caught" | "wrong" | "gate";
   caughtAt: number;
+  caughtPose?: Pose;   // 적발 순간 자세 (결과 화면 증거물 사진)
   leaveT: number;
 
   // 입실 검사

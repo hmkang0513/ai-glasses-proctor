@@ -1,5 +1,6 @@
 // 결과 화면: 감독 결과 보고서
-import { COLORS, H, KR, PIX, W, px, wrapText, type Ctx } from "../core/px";
+import { COLORS, H, KR, PIX, W, makeCanvas, px, wrapText, type Ctx } from "../core/px";
+import { drawCloseup } from "../ui/closeup";
 import type { Input } from "../core/input";
 import { writeSave } from "../core/save";
 import { CHEAT_BY_ID } from "../data/cheats";
@@ -94,9 +95,12 @@ export class ResultScene {
   btns: Btn[] = [];
 
   chief: [string, string] = ["", ""];
+  evidence: Student | null = null;   // 처음 밝혀낸 수법을 잡은 학생 → 폴라로이드 증거물 카드
+  cardState = 0;                      // 0 대기, 1 앞면, 2 뒷면, 3 닫음
   constructor(private s: Session, actions: { next: () => void; retry: () => void; title: () => void }) {
     this.data = computeResult(s);
     this.chief = chiefComment(this.data, s);   // 한 번만 정해서 저장 (같은 문장 연속 방지)
+    this.evidence = [...this.data.caughtExam, ...this.data.caughtGate, ...this.data.prevented].find((x) => x.cheat && this.data.newNotes.includes(x.cheat.id)) ?? null;
     // 저장
     const sv = s.save;
     sv.notebook.push(...this.data.newNotes);
@@ -162,6 +166,12 @@ export class ResultScene {
 
   update(dt: number, inp: Input): void {
     this.t += dt;
+    // 증거물 카드: 도장 뒤 잠깐 있다가 앞면 → 누르면 뒷면 → 누르면 닫음
+    if (this.evidence && this.cardState === 0 && this.t > 1.6) this.cardState = 1;
+    if (this.cardState === 1 || this.cardState === 2) {
+      if ((inp.clicked || inp.hit("Enter") || inp.hit("Space")) && this.t > 1.9) this.cardState++;
+      return;
+    }
     if (inp.clicked && this.t > 0.8) {
       for (const b of this.btns) if (inp.mouseX >= b.x && inp.mouseX <= b.x + b.w && inp.mouseY >= b.y && inp.mouseY <= b.y + b.h) b.act();
     }
@@ -326,5 +336,33 @@ export class ResultScene {
       g.font = KR(13); g.fillStyle = main ? "#f4f2ea" : COLORS.ink;
       g.fillText(b.text, b.x + b.w / 2 - g.measureText(b.text).width / 2, b.y + 5);
     }
+    if (this.cardState === 1 || this.cardState === 2) this.drawEvidence(g);
+  }
+
+  /** 증거물 폴라로이드: 앞면은 적발 순간 사진, 뒷면은 실제 근거 */
+  private drawEvidence(g: Ctx): void {
+    const st = this.evidence!, ch = st.cheat!;
+    px(g, 0, 0, W, H, "rgba(10,14,12,0.6)");
+    g.save(); g.translate(240, 124); g.rotate(0.05);
+    px(g, -68, -86, 140, 176, "#00000044"); px(g, -70, -88, 140, 176, "#fbfaf4");
+    if (this.cardState === 1) {
+      const [off, oc] = makeCanvas(200, 100);
+      drawCloseup(oc, { ...st, status: "seated", pose: st.caughtPose ?? "write" } as Student, this.t, 0, 0, false);
+      g.imageSmoothingEnabled = false;
+      g.drawImage(off, 0, 0, 96, 96, -60, -78, 120, 120);
+      g.font = KR(12); g.fillStyle = "#3a2a10"; g.fillText(`증거물 · ${ch.name}`, -60, 48);
+      g.font = KR(10); g.fillStyle = "#7d776b"; g.fillText(`${this.s.room.school} ${st.seat}번 · ${this.s.room.level}번째 감독`, -60, 64);
+    } else {
+      g.font = KR(12); g.fillStyle = "#3a2a10"; g.fillText(ch.name, -60, -76);
+      const kind = ch.source === "게임 설정" ? "게임 설정 (지어낸 수법)" : ch.source.startsWith("일반 수법") ? "널리 알려진 수법" : `실제 사례 · ${ch.source}`;
+      g.font = KR(10); g.fillStyle = "#9c2d23";
+      wrapText(g, kind, 120).slice(0, 2).forEach((l, i) => g.fillText(l, -60, -58 + i * 12));
+      g.font = KR(11); g.fillStyle = "#3a2a10";
+      const first = ch.hint.split(/(?<=[.다])\s/)[0];
+      wrapText(g, first, 120).slice(0, 7).forEach((l, i) => g.fillText(l, -60, -26 + i * 14));
+    }
+    g.restore();
+    g.font = KR(11); g.fillStyle = "#e9e6da";
+    g.fillText(this.cardState === 1 ? "처음 밝혀낸 수법 · 누르면 뒷면" : "누르면 닫기", 240 - 70, H - 18);
   }
 }
