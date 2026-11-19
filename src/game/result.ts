@@ -126,6 +126,8 @@ export class ResultScene {
     if (s.goal && goalDone(s)) st.stars++;
     if (this.data.grade === "S") st.s++;
     if (s.room.students.some((x) => x.alumnus?.clean && x.outcome !== "wrong")) st.postcard = true;
+    // 시험장 도장: 통과한 학교에 도장 (S면 금색)
+    if (this.data.pass && !s.daily) { const stp = (sv.stamps ??= {}); const prevG = stp[s.room.school]; if (!prevG || "SABC".indexOf(this.data.grade) < "SABC".indexOf(prevG)) stp[s.room.school] = this.data.grade; }
     writeSave(sv);
     const card: Btn = { x: 380, y: 106, w: 80, h: 18, text: "카드 저장", act: () => this.saveCard() };
     this.btns = s.daily

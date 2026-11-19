@@ -23,6 +23,7 @@ export interface SaveData {
   recentLines?: string[]; // 최근 교무실 대사 (3판 안 반복 금지)
   stats?: { caught: number; perfect: number; stars: number; s: number; postcard: boolean };   // 교무실 책상 꾸미기용 누적 기록
   desk?: string[];        // 교무실 책상에 생긴 물건
+  stamps?: Record<string, string>;   // 시험장 도장 (학교 → 최고 등급)
 }
 
 const DEFAULT: SaveData = { level: 1, notebook: [], noteMissed: [], bestGrades: {}, attempts: {}, alumni: [], daily: {}, mode: "fp", seenTutorial: false };
@@ -49,6 +50,7 @@ export function loadSave(): SaveData {
       recentLines: Array.isArray(d.recentLines) ? d.recentLines.slice(-3) : [],
       stats: d.stats && typeof d.stats === "object" ? { caught: +d.stats.caught || 0, perfect: +d.stats.perfect || 0, stars: +d.stats.stars || 0, s: +d.stats.s || 0, postcard: !!d.stats.postcard } : undefined,
       desk: Array.isArray(d.desk) ? d.desk.filter((x) => typeof x === "string") : [],
+      stamps: d.stamps && typeof d.stamps === "object" ? d.stamps : {},
     };
   } catch {
     return { ...DEFAULT };

@@ -49,6 +49,8 @@ const DESK: Array<[string, (s: Session) => boolean]> = [
   ["postcard", (s) => !!s.save.stats?.postcard],
   ["memoframe", (s) => (s.save.stats?.s ?? 0) >= 5],
   ["calendar", (s) => s.room.level >= 10],
+  ["stampboard", (s) => Object.keys(s.save.stamps ?? {}).length >= 2],
+  ["trophy", (s) => Object.keys(s.save.stamps ?? {}).length >= 12],
 ];
 
 export class StaffroomScene {
@@ -117,6 +119,18 @@ export class StaffroomScene {
       for (let k = 0; k < marks; k++) px(g, 279 + (k % 4) * 7, 39 + Math.floor(k / 4) * 7, 4, 4, "#c0504d");
       at.calendar = [291, 26];
     }
+    if (has("stampboard")) {   // 시험장 도장판: 12칸, 받은 학교는 빨간 도장(S는 금색)
+      px(g, 160, 74, 64, 44, "#e9dfc4"); px(g, 160, 74, 64, 3, "#8a6a4a");
+      const stp = this.s.save.stamps ?? {}, names = Object.keys(stp);
+      for (let k = 0; k < 12; k++) {
+        const cx = 164 + (k % 6) * 10, cy = 82 + Math.floor(k / 6) * 16;
+        const gr = stp[names[k]];
+        px(g, cx, cy, 8, 8, gr ? (gr === "S" ? "#e8c35a" : "#c0504d") : "#d6ccb0");
+        if (gr) px(g, cx + 2, cy + 2, 4, 4, "#e9dfc4");
+      }
+      at.stampboard = [192, 70];
+    }
+    if (has("trophy")) { px(g, 98, 166, 18, 4, "#8a6a10"); px(g, 102, 154, 10, 12, "#e8c35a"); px(g, 100, 150, 14, 4, "#e8c35a"); at.trophy = [107, 146]; }   // 12개 학교 완주 트로피
     // 이번 판에 새로 생긴 물건: 하나씩 0.4초 간격으로 NEW
     this.fresh.forEach((id, k) => {
       const p = at[id];
