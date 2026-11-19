@@ -10,6 +10,7 @@ import { BreakScene } from "./game/breakScene";
 import { ResultScene } from "./game/result";
 import { GateScene } from "./game/gate";
 import { StaffroomScene } from "./game/staffroom";
+import { OpeningScene } from "./game/opening";
 import { END_WHEN_ALL_CAUGHT } from "./data/rules";
 import { isCheating } from "./world/student";
 
@@ -61,11 +62,16 @@ function goTitle(): void {
   scene = new TitleScene(save, () => startSession(), () => startSession(undefined, true));
 }
 
-function startSession(levelOverride?: number, daily = false): void {
+function startSession(levelOverride?: number, daily = false, skipOpening = false): void {
   const lv = levelOverride ?? save.level;
   session = newSession(save, levelOverride, daily ? 0 : save.attempts[lv] ?? 0, daily ? todayKey() : null);
-  if (session.room.gate) scene = new GateScene(session, () => (session!.replaced ? showResult() : startPeriod(0)));
-  else startPeriod(0);
+  const begin = () => {
+    if (session!.room.gate) scene = new GateScene(session!, () => (session!.replaced ? showResult() : startPeriod(0)));
+    else startPeriod(0);
+  };
+  // 시험장 들어가기 짧은 장면 (개발용 #lv= 시작은 건너뜀)
+  if (skipOpening) begin();
+  else scene = new OpeningScene(session, begin);
 }
 
 function startPeriod(p: 0 | 1 | 2): void {
@@ -113,7 +119,7 @@ const fontsReady = document.fonts
   ? Promise.all([document.fonts.load("12px \"Do Hyeon\"", "감독관"), document.fonts.load("8px Silkscreen")])
   : Promise.resolve();
 Promise.race([fontsReady, new Promise((r) => setTimeout(r, 2000))]).finally(() => {
-  if (m) startSession(Number(m[1]));
+  if (m) startSession(Number(m[1]), false, true);
   else goTitle();
   requestAnimationFrame(frame);
 });
