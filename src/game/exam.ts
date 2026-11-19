@@ -66,6 +66,8 @@ export class ExamScene {
   panelCloseAt = 0;                       // 적발 뒤 들킨 표정을 잠깐 보여 주고 닫음
   autoWalk = -1; autoWalkUntil = 0;
   closeEnough = -1;
+  confirmI = -1; confirmUntil = 0;
+  stuckT = 0; stuckToastAt = 0;         // 적발 확인 (F 두 번)
   rainAt = 0;
   look: RoomLook | undefined;               // 학교별 교실 풍경 (21회차~)
   // 반장의 제보 (11회차~, 교시당 1번, 항상 맞는 정보)
@@ -347,6 +349,8 @@ export class ExamScene {
   }
 
   toast(text: string, sec = 3, color?: string): void {
+    const same = this.toasts.find((x) => x.text === text && x.until > this.rt);
+    if (same) { same.until = this.rt + sec; return; }   // 연타해도 한 줄
     this.toasts.push({ text, until: this.rt + sec, color });
   }
 
@@ -632,7 +636,7 @@ export class ExamScene {
       if (mx || mz || st.status !== "seated") this.autoWalk = -1;   // 직접 움직이면 취소
       else if (reached || (stuck && this.dist(st) <= 3.0)) {
         // 도착: 멈춰서 관찰창을 선명하게 보여 줌. 적발은 직접 한 번 더 (엉뚱한 학생을 바로 잡지 않게)
-        this.autoWalk = -1; this.panel = st.i; this.closeEnough = st.i;
+        this.autoWalk = -1; this.panel = st.i; this.closeEnough = st.i; this.confirmI = st.i; this.confirmUntil = this.rt + 8;
         this.cam.yaw = Math.atan2(st.x - this.cam.x, st.z - this.cam.z);
         this.toast(`${st.seat}번 옆에 왔습니다. 확인하고 ${this.touchMemo ? "적발 버튼" : "F"}를 한 번 더`, 2.5);
       }
@@ -649,8 +653,12 @@ export class ExamScene {
       this.tiptoe = inp.isDown("ShiftLeft") || inp.isDown("ShiftRight");
       if (this.tiptoe) { if (!this.s.used.includes("tiptoe")) this.s.used.push("tiptoe"); }
       const step = ((this.tiptoe ? WALK * 0.45 : WALK) * dt) / len;
+      const ox = this.cam.x, oz = this.cam.z;
       this.tryMove(this.cam.x + mx * step, this.cam.z);
       this.tryMove(this.cam.x, this.cam.z + mz * step);
+      // 계속 밀어도 안 움직이면 이유를 알려 줌
+      if (Math.hypot(this.cam.x - ox, this.cam.z - oz) < step * len * 0.15) this.stuckT += dt; else this.stuckT = 0;
+      if (this.stuckT > 0.6 && this.rt > this.stuckToastAt) { this.stuckToastAt = this.rt + 6; this.toast("책상에 막혔어요 · 옆 통로로 돌아가세요", 2); }
     }
     this.cam.y = 1.55 + (this.moving ? Math.sin(this.t * 9) * 0.012 : 0);
     // 듣기평가 중 걸으면 발소리 (게임 설정: 실제 이동 금지 규정은 확인 못 함)
@@ -768,8 +776,21 @@ export class ExamScene {
       // 머리(스프라이트 위쪽 1/4)가 조준점에 가장 가까운 학생
       const hx = fx, hy = fy - h * 0.72;
       const d = Math.hypot(W / 2 - hx, (H / 2 - hy) * 0.6);
-      const tol = this.touchMemo ? 0.5 : 0.32;   // 휴대폰은 조준을 너그럽게
+      const tol = this.touchMemo ? 0.8 : 0.32;   // 휴대폰은 조준을 너그럽게
       if (Math.abs(W / 2 - hx) < Math.max(10, w * tol) && d < bz) { bz = d; best = st.i; }
+    }
+    if (best < 0 && this.touchMemo) {
+      // 휴대폰: 화면 가운데에 없어도 보이는 학생 중 가장 가까운 사람 (화면 안쪽 70%)
+      let bd = 3.2;
+      for (const st of this.students) {
+        if (st.status !== "seated") continue;
+        const c = toCam([st.x, 0, st.z], this.cam);
+        if (c[2] < 0.4) continue;
+        const [fx] = proj(c);
+        if (Math.abs(fx - W / 2) > W * 0.35) continue;
+        const dd = this.dist(st);
+        if (dd < bd) { bd = dd; best = st.i; }
+      }
     }
     return best;
   }
@@ -777,7 +798,7 @@ export class ExamScene {
   private tryAccuse(near = false): void {
     if (this.endAt > 0 || this.s.replaced) return;   // 교체·종료가 정해진 뒤에는 적발 불가
     const idx = this.panel >= 0 ? this.panel : this.target;
-    if (idx < 0) { this.toast("적발할 학생을 먼저 관찰(E)하세요", 2); return; }
+    if (idx < 0) { this.toast(this.touchMemo ? "학생을 화면 가운데에 두고 관찰 버튼을 먼저 누르세요" : "적발할 학생을 먼저 관찰(E)하세요", 2); return; }
     const st = this.students[idx];
     if (st.status !== "seated") return;   // 이미 나가는 중
     if (st.i === this.repI && this.repState === 1) { this.toast("반장은 제보하러 손을 든 겁니다. E로 이야기를 들어 보세요", 2.5); return; }
@@ -794,6 +815,13 @@ export class ExamScene {
       return;
     }
     if (this.pre > 0) { this.checkWatch(st); return; }
+    if (this.confirmI !== st.i || this.rt > this.confirmUntil) {
+      // 첫 F: 누구를 적발하는지 확인 (조준선에 걸린 다른 학생을 실수로 잡지 않게)
+      this.confirmI = st.i; this.confirmUntil = this.rt + 5; this.panel = st.i;
+      this.toast(`${st.seat}번을 적발할까요? ${this.touchMemo ? "적발 버튼" : "F"}를 한 번 더`, 2.5, COLORS.accent);
+      return;
+    }
+    this.confirmI = -1;
     const overtimeCatch = this.collectT > 0 && st.overtime && st.status === "seated";
     if (overtimeCatch && !st.cheat) st.cheat = CHEAT_BY_ID.overtime;
     if (overtimeCatch && !this.s.used.includes("overtimeCatch")) this.s.used.push("overtimeCatch");   // 원래 무고했던 학생: 종료령 뒤 작성으로 적발
